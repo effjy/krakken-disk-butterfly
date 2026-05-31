@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="krakken_logo.png" alt="Krakken-Disk Butterfly Logo" width="200"/>
+</div>
+
 # 🐙 Krakken-Disk v4.6.0 (Butterfly Edition)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
