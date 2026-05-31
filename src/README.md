@@ -1,23 +1,9 @@
-<div align="center">
-  <img src="krakken_logo.png" alt="Krakken-Disk Butterfly Logo" width="260"/>
-</div>
-
 # 🐙 Krakken-Disk v4.6.0 (Butterfly Edition)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![C Standard: C11](https://img.shields.io/badge/C-C11-blue.svg)](#)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-orange.svg)](#)
 [![Security: Post--Quantum](https://img.shields.io/badge/Security-Post--Quantum--Era-teal.svg)](#)
-
----
-
-## 📸 Screenshot
-
-<div align="center">
-  <img src="screenshot.png" alt="Krakken-Disk Graphical User Interface Screenshot" width="800"/>
-  <br/>
-  <em>The Krakken-Disk main dashboard — dark-themed GTK interface for volume management</em>
-</div>
 
 ---
 
