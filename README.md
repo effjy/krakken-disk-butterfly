@@ -9,6 +9,18 @@
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-orange.svg)](#)
 [![Security: Post--Quantum](https://img.shields.io/badge/Security-Post--Quantum--Era-teal.svg)](#)
 
+---
+
+## 📸 Screenshot
+
+<div align="center">
+  <img src="screenshot.png" alt="Krakken-Disk Graphical User Interface Screenshot" width="800"/>
+  <br/>
+  <em>The Krakken-Disk main dashboard — dark-themed GTK interface for volume management</em>
+</div>
+
+---
+
 **Krakken-Disk** is an ultra-secure, high-performance encrypted disk manager engineered specifically for the post-quantum era. Powered by the massive 2048-bit **Krakken Abyssal** permutation, Krakken-Disk provides a uniform 256-bit post-Grover security margin across all volume layers. By combining cutting-edge lattice-based cryptography, elliptic curve cryptography, and hardware-accelerated AVX2 SIMD architectures, it ensures your data remains completely private even against future quantum computing adversaries.
 
 ---
@@ -41,19 +53,88 @@ graph TD
     SectorCache --> SectorDec[Sector Encryption/Decryption: Krakken-2048 Sponge]
 ```
 
-### 1. The Krakken Abyssal Permutation
-Operating over a 2048-bit state (32 x 64-bit lanes) structured as a 4x8 column grid, the permutation executes 10 rounds of mathematical transformations:
--   **Theta ($\theta$)**: Column parity mixing.
--   **Tentacle MDS**: High-diffusion Maximum Distance Separable matrix multiplication in $\text{GF}(2^8)$ implemented via AVX2 shuffle instructions.
--   **Rho ($\rho$) & Pi ($\pi$)**: Bit-shifts and lane transpositions.
--   **Chi ($\chi$)**: Non-linear S-box layer utilizing the custom 8-bit Abyssal S-box (Active NL=112).
--   **Pressure ARX**: Add-Rotate-XOR col-mixing to resist differential cryptanalysis.
--   **Beta-Iota ($\beta$/$\iota$)**: Round constant injection derived via SHAKE-128.
--   **Ink Cloud**: final lane-mixing step.
+### Krakken-2048 Butterfly Round Function (9 Layers)
 
-### 2. High-Performance AEAD Stream Encryption
+The permutation executes **8 rounds**, each composed of nine distinct layers in sequential order:
+
+| Layer | Name | Type | Description |
+|-------|------|------|-------------|
+| **L1** | $\Theta$ (Theta) | SPN | Column parity mixing |
+| **L2** | $\Sigma$ (Sigma) | SPN | Circulant MDS over GF($2^8$) |
+| **L3** | $\rho$ (Rho) | SPN | Per-word rotation |
+| **L4** | $\Pi$ (Pi) | SPN | Column permutation |
+| **L5** | $\chi$ (Chi) | SPN | ABYSSAL S-box (cross-coupled pairs) |
+| **L6** | **Butterfly Diffusion (XRBD)** | **Novel** | **5-stage XOR-rotation butterfly network** |
+| **L7** | **PRESSURE** | ARX | Modular addition with XOR-shift mixing |
+| **L8** | $\iota$ (Iota) | Key Schedule | Round constant addition (per-word) |
+| **L9** | **InkCloud** | Diffusion | Global word permutation + rotation |
+
+### Layer 6 — Butterfly Diffusion (XRBD): Full-State Mixing
+
+The XOR-Rotation Butterfly Diffusion (XRBD) layer is the **central architectural novelty** of Krakken-2048. It solves the problem of mixing all 32 words of state such that every output word depends on every input word after a single pass, using only word-level XOR and rotation operations.
+
+**Definition:** Let $r_0, r_1, r_2, r_3, r_4$ be rotation constants $(13, 23, 37, 41, 53)$. For stage $k \in \{0,1,2,3,4\}$, let $\delta_k = 2^k \in \{1,2,4,8,16\}$. For all $i \in [32]$ with $(i \mathbin{\&} \delta_k) = 0$, execute:
+
+$$
+\begin{aligned}
+\text{state}[i] &\leftarrow \text{state}[i] \oplus \text{state}[i \oplus \delta_k], \\
+\text{state}[i \oplus \delta_k] &\leftarrow \text{state}[i \oplus \delta_k] \oplus \text{RotL}(\text{state}[i], r_k).
+\end{aligned}
+$$
+
+**Key Properties:**
+- **Bijective:** Each crossover step is invertible (Theorem 1 in paper)
+- **Complete Dependency:** Achieves $\log_2(32) = 5$ stages for full word-level mixing (Theorem 2)
+- **Optimal:** Matches the theoretical lower bound for pairwise-mixing networks (Theorem 3)
+- **Rotation-Enhanced:** Asymmetric rotation constants break bit-aligned symmetries
+
+### Layer 7 — PRESSURE: ARX Mixing
+
+After the Butterfly Diffusion layer connects all 32 words, PRESSURE introduces modular-arithmetic non-linearity via carry propagation that crosses byte boundaries.
+
+For each column $c \in [8]$ with words $(a, b, cc, d)$:
+
+$$
+\begin{aligned}
+a &\leftarrow a + (cc \oplus (cc \gg 17)), \\
+b &\leftarrow b + (d \oplus (d \gg 17)), \\
+cc &\leftarrow cc + (a \oplus (a \ll 31)), \\
+d &\leftarrow d + (b \oplus (b \ll 31)),
+\end{aligned}
+$$
+
+followed by post-rotations: $b \leftarrow \text{RotL}(b, 7)$, $d \leftarrow \text{RotL}(d, 19)$.
+
+### Layer 9 — InkCloud Shuffle
+
+The final step of each round is a global word permutation combined with rotation:
+
+$$
+\text{state}'[(7i) \bmod 32] \leftarrow \text{RotL}(\text{state}[i], 11), \quad i \in [32].
+$$
+
+The multiplier $7$ (coprime to $32$) generates a full 32-cycle, ensuring every word returns to its original position only after 32 rounds.
+
+### The Krakken Abyssal Permutation (Full Round)
+
+Operating over a 2048-bit state (32 × 64-bit lanes) structured as a 4×8 column grid, each round executes:
+
+1. **$\Theta$ (Theta)** — Column parity mixing
+2. **$\Sigma$ (Sigma)** — Circulant MDS over GF($2^8$)
+3. **$\rho$ (Rho)** — Per-word rotations
+4. **$\Pi$ (Pi)** — Column permutation
+5. **$\chi$ (Chi)** — ABYSSAL S-box (cross-coupled pairs)
+6. **Butterfly Diffusion (XRBD)** — 5-stage XOR-rotation network
+7. **PRESSURE** — ARX mixing with carry propagation
+8. **$\iota$ (Iota)** — Round constant addition (per-word)
+9. **InkCloud** — Global word permutation + rotation
+
+### High-Performance AEAD Stream Encryption
+
 For file operations, Krakken-Disk divides streams into fixed 4 MB segments. Each segment is processed independently in parallel using a thread-pool (up to 8 hardware threads) with its own sponge state:
+
 $$\text{keystream}_i = \text{Krakken-Sponge}(\text{FileKey} \mathbin{\Vert} \text{Nonce} \mathbin{\Vert} \text{LE64}(i))$$
+
 A BLAKE2b-256 MAC is computed over the entire stream for ciphertext authentication.
 
 ---
@@ -166,4 +247,4 @@ make run
 - **Contact**: [effjy@protonmail.com](mailto:effjy@protonmail.com)
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
+```
