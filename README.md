@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="krakken_logo.png" alt="Krakken-Disk Butterfly Logo" width="200"/>
+  <img src="krakken_logo.png" alt="Krakken-Disk Butterfly Logo" width="260"/>
 </div>
 
 # 🐙 Krakken-Disk v4.6.0 (Butterfly Edition)
