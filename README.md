@@ -8,6 +8,7 @@
 [![C Standard: C11](https://img.shields.io/badge/C-C11-blue.svg)](#)
 [![Platform: Linux](https://img.shields.io/badge/Platform-Linux-orange.svg)](#)
 [![Security: Post--Quantum](https://img.shields.io/badge/Security-Post--Quantum--Era-teal.svg)](#)
+[![Manual: PDF](https://img.shields.io/badge/📖_Manual-PDF-red.svg)](MANUAL.pdf)
 
 ---
 
@@ -34,6 +35,20 @@
 *   🔒 **Anti-Brute Force Protection**: Uses **Argon2id** key derivation locked with 1 GB of RAM to render GPU- and ASIC-based brute-force attacks economically and computationally impossible.
 *   🔄 **Dual-Generation Compatibility**: Seamless trial-decryption supports legacy V3 volumes (XChaCha) and next-generation V4 volumes (Krakken-2048).
 *   🐧 **FUSE 3 Mounting**: Exposes encrypted containers as transparent, read-write filesystem directories in user space.
+
+---
+
+## 📖 Documentation
+
+A complete **User & Technical Manual** is available as a downloadable PDF. It covers the full cryptographic architecture, the nine-layer round function with mathematical definitions, and detailed build, installation, usage, and security guidance.
+
+<div align="center">
+
+### [📄 Download the Full Manual (MANUAL.pdf)](MANUAL.pdf)
+
+</div>
+
+> 💡 The manual is the most thorough reference for Krakken-Disk. Start with the sections below for a quick overview, then consult [`MANUAL.pdf`](MANUAL.pdf) for in-depth technical detail.
 
 ---
 
@@ -199,6 +214,8 @@ sudo make uninstall
 
 ## 🚀 How to Use
 
+> 📖 For the complete walkthrough, see the [**User & Technical Manual (MANUAL.pdf)**](MANUAL.pdf).
+
 ### Launching the Application
 If installed globally, launch Krakken-Disk from your desktop applications menu, or invoke it directly:
 ```bash
@@ -247,4 +264,3 @@ make run
 - **Contact**: [effjy@protonmail.com](mailto:effjy@protonmail.com)
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-```
