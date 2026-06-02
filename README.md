@@ -38,6 +38,21 @@
 
 ---
 
+## 💻 System Requirements
+
+- **CPU**: Intel processor with **AVX2** support (or AVX‑512, which includes AVX2).  
+  *AMD processors with AVX2 also work, but the code is specifically optimized for Intel's AVX2 implementation.*
+- **RAM**: 2 GB minimum (4 GB+ recommended for comfortable use with Argon2id 1 GB setting).
+- **OS**: Linux (kernel 4.4+ recommended).  
+  *Other Unix-like systems may work with FUSE and libsodium, but are not officially tested.*
+
+> [!NOTE]
+> To check if your CPU supports AVX2, run:  
+> `grep -o 'avx2' /proc/cpuinfo | head -1`  
+> If it returns `avx2`, you are ready.
+
+---
+
 ## 📖 Documentation
 
 A complete **User & Technical Manual** is available as a downloadable PDF. It covers the full cryptographic architecture, the nine-layer round function with mathematical definitions, and detailed build, installation, usage, and security guidance.
