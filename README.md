@@ -2,7 +2,7 @@
   <img src="krakken_logo.png" alt="Krakken-Disk Butterfly Logo" width="260"/>
 </div>
 
-# 🐙 Krakken-Disk v4.6.0 (Butterfly Edition)
+# 🐙 Krakken-Disk v5.0.0 (Butterfly Edition)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![C Standard: C11](https://img.shields.io/badge/C-C11-blue.svg)](#)
@@ -23,6 +23,20 @@
 ---
 
 **Krakken-Disk** is an ultra-secure, high-performance encrypted disk manager engineered specifically for the post-quantum era. Powered by the massive 2048-bit **Krakken Abyssal** permutation, Krakken-Disk provides a uniform 256-bit post-Grover security margin across all volume layers. By combining cutting-edge lattice-based cryptography, elliptic curve cryptography, and hardware-accelerated AVX2 SIMD architectures, it ensures your data remains completely private even against future quantum computing adversaries.
+
+---
+
+## 📝 What's New in v5.0.0
+
+For a detailed changelog from version 4.6.0 to 5.0.0, please refer to:
+
+<div align="center">
+
+### [📄 View the Version History (VERSION.md)](VERSION.md)
+
+</div>
+
+> This file documents all breaking changes, new features, performance improvements, and bug fixes introduced in the 5.0.0 release.
 
 ---
 
