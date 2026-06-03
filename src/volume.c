@@ -11,61 +11,14 @@
 #include <unistd.h>
 #include <limits.h>
 
-#define VOLUME_VERSION 4
+#define VOLUME_VERSION 5
 #define SECTOR_SIZE VFS_SECTOR_SIZE
 #define PER_SECTOR_MAC_SIZE 32
 #define HEADER_RESERVE 8192
 
-/* sector_nonce: encode sector index as little-endian into a zeroed nonce buffer */
-static void sector_nonce(uint64_t idx, uint8_t *nonce, size_t nonce_len) {
-    memset(nonce, 0, nonce_len);
-    for (size_t i = 0; i < 8 && i < nonce_len; i++)
-        nonce[i] = (idx >> (i * 8)) & 0xFF;
-}
-
-static int encrypt_sector(FILE *f, uint64_t idx, const uint8_t *plain,
-                          const uint8_t *master_key, size_t master_key_len, int use_domain_separator) {
-    /* Derive per-sector key using BLAKE2b */
-    uint8_t sector_key[KEY_SIZE];
-    crypto_generichash(sector_key, KEY_SIZE, master_key, master_key_len, 
-                      (const uint8_t*)&idx, sizeof(idx));
-
-    uint8_t nonce[NONCE_SIZE];
-    sector_nonce(idx, nonce, NONCE_SIZE);
-
-    permut2048_ctx sponge = { .rate = PERMUT2048_RATE };
-    permut2048_absorb(&sponge, sector_key, KEY_SIZE);
-    permut2048_absorb(&sponge, nonce, NONCE_SIZE);
-    if (use_domain_separator) {
-        permut2048_absorb(&sponge, (const uint8_t*)"\x00", 1);
-    }
-    permut2048_finalize(&sponge); /* canonical sponge padding — replaces old manual loop */
-
-    uint8_t cipher[SECTOR_SIZE], keystream[SECTOR_SIZE];
-    permut2048_squeeze(&sponge, keystream, SECTOR_SIZE);
-    for (size_t i = 0; i < SECTOR_SIZE; i++) cipher[i] = plain[i] ^ keystream[i];
-    secure_zero(keystream, SECTOR_SIZE);
-
-    uint8_t tag[PER_SECTOR_MAC_SIZE];
-    crypto_generichash_state mac;
-    crypto_generichash_init(&mac, sector_key, KEY_SIZE, PER_SECTOR_MAC_SIZE);
-    crypto_generichash_update(&mac, (uint8_t*)&idx, sizeof(idx));
-    crypto_generichash_update(&mac, cipher, SECTOR_SIZE);
-    crypto_generichash_final(&mac, tag, PER_SECTOR_MAC_SIZE);
-
-    if (fwrite(cipher, 1, SECTOR_SIZE, f) != SECTOR_SIZE) {
-        secure_zero(sector_key, KEY_SIZE);
-        return -1;
-    }
-    if (fwrite(tag, 1, PER_SECTOR_MAC_SIZE, f) != PER_SECTOR_MAC_SIZE) {
-        secure_zero(sector_key, KEY_SIZE);
-        return -1;
-    }
-    
-    secure_zero(sector_key, KEY_SIZE);
-    return 0;
-}
-
+/* On-disk size of one V5 sector record: ciphertext + nonce + MAC tag.
+ * Must match SECTOR_RECORD_SIZE in sector_cache.c. */
+#define SECTOR_RECORD_SIZE (SECTOR_SIZE + SECTOR_NONCE_SIZE + PER_SECTOR_MAC_SIZE)
 
 int volume_create(const char *path, size_t size_mb, const char *password,
                   progress_callback_t progress_cb, void *user_data) {
@@ -119,7 +72,7 @@ int volume_create(const char *path, size_t size_mb, const char *password,
     uint8_t plain_header[HEADER_RESERVE];
     memset(plain_header, 0, HEADER_RESERVE);
     size_t pos = 0;
-    memcpy(plain_header + pos, KRAKKEN4_MAGIC, 8); pos += 8;
+    memcpy(plain_header + pos, KRAKKEN5_MAGIC, 8); pos += 8;
     memcpy(plain_header + pos, wrap_nonce, WRAP_NONCE_LEN); pos += WRAP_NONCE_LEN;
     memcpy(plain_header + pos, wrap_ct, WRAP_CIPHERTEXT_LEN); pos += WRAP_CIPHERTEXT_LEN;
     memcpy(plain_header + pos, kyber_pk, KYBER_PUBLICKEYBYTES); pos += KYBER_PUBLICKEYBYTES;
@@ -152,7 +105,7 @@ int volume_create(const char *path, size_t size_mb, const char *password,
     /* Setup VFS in memory using temporary data area */
     vfs_context_t vfs;
     size_t total_bytes = size_mb * 1024 * 1024 - (SALT_SIZE + HEADER_NONCE_LEN + sizeof(encrypted_header));
-    size_t total_sectors = total_bytes / (SECTOR_SIZE + PER_SECTOR_MAC_SIZE);
+    size_t total_sectors = total_bytes / SECTOR_RECORD_SIZE;
     vfs.data_size = total_sectors * SECTOR_SIZE;
     
     /* Use temporary data area for volume creation */
@@ -167,9 +120,10 @@ int volume_create(const char *path, size_t size_mb, const char *password,
     memcpy(temp_data_area, &vfs.header, sizeof(vfs_header_t));
     memcpy(temp_data_area + sizeof(vfs_header_t), vfs.files, sizeof(vfs_file_entry_t) * VFS_MAX_FILES);
 
-    /* Write sectors with MACs using file_key for consistency with opening logic */
+    /* Write sectors using the same shared encryptor as the runtime flush path
+     * so volume creation and runtime writes can never desync. */
     for (size_t i = 0; i < total_sectors; i++) {
-        if (encrypt_sector(f, i, temp_data_area + i * SECTOR_SIZE, file_key, KEY_SIZE, 1) != 0) {
+        if (sector_encrypt_write(f, i, file_key, temp_data_area + i * SECTOR_SIZE) != 0) {
             secure_zero(file_key, KEY_SIZE);
             secure_zero(temp_data_area, vfs.data_size);
             free(temp_data_area); fclose(f); return -1;
@@ -206,62 +160,41 @@ int volume_open(const char *path, const char *password, volume_context_t *vol,
         fclose(f); return -1;
     }
 
-    /* Trial Decryption: Try V4 first, then fallback to V3 */
-    int is_v4 = 0;
+    /* Single-format V5 header decryption (Krakken). No trial decryption. */
     uint8_t plain_header[HEADER_RESERVE];
-    
-    /* Attempt V4 (Krakken) */
-    if (derive_master_key_v4(password, salt, vol->master_key) == 0) {
-        uint8_t encrypted_header[HEADER_RESERVE + TAG_SIZE];
-        if (fread(encrypted_header, 1, sizeof(encrypted_header), f) == sizeof(encrypted_header)) {
-            permut2048_ctx ctx;
-            memset(&ctx, 0, sizeof(ctx));
-            ctx.rate = PERMUT2048_RATE;
-            permut2048_absorb(&ctx, vol->master_key, KEY_SIZE);
-            permut2048_absorb(&ctx, header_nonce, HEADER_NONCE_LEN);
-            permut2048_absorb(&ctx, (const uint8_t *)"HEADER", 6);
-            permut2048_finalize(&ctx);
-            permut2048_decrypt(&ctx, encrypted_header, plain_header, HEADER_RESERVE);
-            uint8_t computed_tag[TAG_SIZE];
-            permut2048_squeeze(&ctx, computed_tag, TAG_SIZE);
-            
-            if (ct_memcmp(computed_tag, encrypted_header + HEADER_RESERVE, TAG_SIZE) == 0) {
-                /* Check for magic inside the decrypted buffer to confirm correct password */
-                if (memcmp(plain_header, KRAKKEN4_MAGIC, 8) == 0) {
-                    is_v4 = 1;
-                }
-            }
-            secure_zero(&ctx, sizeof(ctx));
-        }
+
+    if (derive_master_key_v4(password, salt, vol->master_key) != 0) {
+        fclose(f); return -1;
     }
 
-    if (!is_v4) {
-        /* Fallback to V3 (XChaCha20) */
-        if (derive_master_key(password, salt, vol->master_key) != 0) {
-            fclose(f); return -1;
-        }
-        
-        fseek(f, SALT_SIZE + HEADER_NONCE_LEN, SEEK_SET);
-        uint8_t encrypted_header_v3[HEADER_RESERVE + crypto_aead_xchacha20poly1305_ietf_ABYTES];
-        if (fread(encrypted_header_v3, 1, sizeof(encrypted_header_v3), f) != sizeof(encrypted_header_v3)) {
-            fclose(f); return -1;
-        }
-
-        uint8_t header_key[HEADER_KEY_LEN];
-        crypto_generichash(header_key, HEADER_KEY_LEN, vol->master_key, 32, (const uint8_t*)"HEADER", 6);
-        if (crypto_aead_xchacha20poly1305_ietf_decrypt(plain_header, NULL, NULL,
-                                                        encrypted_header_v3, sizeof(encrypted_header_v3),
-                                                        NULL, 0, header_nonce,
-                                                        header_key) != 0) {
-            secure_zero(header_key, HEADER_KEY_LEN);
-            secure_zero(vol->master_key, KEY_SIZE);
-            fclose(f); return -1;
-        }
-        secure_zero(header_key, HEADER_KEY_LEN);
+    uint8_t encrypted_header[HEADER_RESERVE + TAG_SIZE];
+    if (fread(encrypted_header, 1, sizeof(encrypted_header), f) != sizeof(encrypted_header)) {
+        secure_zero(vol->master_key, KEY_SIZE);
+        fclose(f); return -1;
     }
 
-    /* Parse plain header */
-    size_t pos = is_v4 ? 8 : 0;
+    permut2048_ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.rate = PERMUT2048_RATE;
+    permut2048_absorb(&ctx, vol->master_key, KEY_SIZE);
+    permut2048_absorb(&ctx, header_nonce, HEADER_NONCE_LEN);
+    permut2048_absorb(&ctx, (const uint8_t *)"HEADER", 6);
+    permut2048_finalize(&ctx);
+    permut2048_decrypt(&ctx, encrypted_header, plain_header, HEADER_RESERVE);
+    uint8_t computed_tag[TAG_SIZE];
+    permut2048_squeeze(&ctx, computed_tag, TAG_SIZE);
+    secure_zero(&ctx, sizeof(ctx));
+
+    /* Authenticate the header, then confirm the magic (wrong password fails one
+     * or both). */
+    if (ct_memcmp(computed_tag, encrypted_header + HEADER_RESERVE, TAG_SIZE) != 0 ||
+        memcmp(plain_header, KRAKKEN5_MAGIC, 8) != 0) {
+        secure_zero(vol->master_key, KEY_SIZE);
+        fclose(f); return -1;
+    }
+
+    /* Parse plain header (magic occupies the first 8 bytes) */
+    size_t pos = 8;
     uint8_t wrap_nonce[WRAP_NONCE_LEN], wrap_ct[WRAP_CIPHERTEXT_LEN];
     uint8_t kyber_pk[KYBER_PUBLICKEYBYTES], x448_pk[X448_PUBKEY_LEN];
     uint8_t kem_ct[KYBER_CIPHERTEXTBYTES + X448_PUBKEY_LEN];
@@ -272,16 +205,14 @@ int volume_open(const char *path, const char *password, volume_context_t *vol,
     memcpy(kem_ct, plain_header + pos, sizeof(kem_ct)); pos += sizeof(kem_ct);
     uint32_t version;
     memcpy(&version, plain_header + pos, sizeof(version));
-    
-    if (is_v4) {
-        if (version != 4) { secure_zero(vol->master_key, KEY_SIZE); fclose(f); return -1; }
-    } else {
-        if (version != 2 && version != 3) { secure_zero(vol->master_key, KEY_SIZE); fclose(f); return -1; }
+
+    if (version != VOLUME_VERSION) {
+        secure_zero(vol->master_key, KEY_SIZE); fclose(f); return -1;
     }
 
-    /* Unwrap hybrid secret key */
+    /* Unwrap hybrid secret key (Krakken duplex wrap) */
     uint8_t hybrid_sk[HYBRID_SK_LEN];
-    if (unwrap_hybrid_sk(hybrid_sk, vol->master_key, wrap_nonce, wrap_ct, is_v4) != 0) {
+    if (unwrap_hybrid_sk(hybrid_sk, vol->master_key, wrap_nonce, wrap_ct, 1) != 0) {
         secure_zero(vol->master_key, KEY_SIZE);
         fclose(f); return -1;
     }
@@ -304,15 +235,14 @@ int volume_open(const char *path, const char *password, volume_context_t *vol,
     fseek(f, 0, SEEK_END);
     long file_end = ftell(f);
     size_t data_bytes = file_end - data_start;
-    size_t total_sectors = data_bytes / (SECTOR_SIZE + PER_SECTOR_MAC_SIZE);
+    size_t total_sectors = data_bytes / SECTOR_RECORD_SIZE;
     vol->vfs.data_size = total_sectors * SECTOR_SIZE;
-    
+
     /* Initialize cache with the file handle and keys.
      * data_offset and total_sectors are passed directly so cache_init
      * does not need to re-derive them from the file size (Bug 3 fix). */
     vol->vfs.cache = cache_init(f, vol->master_key, vol->file_key, 4096,
-                                (size_t)data_start, (uint64_t)total_sectors,
-                                (version >= 3 ? 1 : 0));
+                                (size_t)data_start, (uint64_t)total_sectors);
     if (!vol->vfs.cache) {
         fclose(f); return -1;
     }

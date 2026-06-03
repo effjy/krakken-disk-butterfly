@@ -3,7 +3,7 @@
 
 /* Application configuration */
 #define APP_NAME "Krakken-Disk"
-#define APP_VERSION "4.6.0"
+#define APP_VERSION "5.0.0"
 #define APP_TITLE "Krakken-2048 Encrypted Disk Manager"
 
 /* Kyber K is defined in Makefile */
@@ -48,6 +48,9 @@
 #define VFS_MAX_FILENAME_LEN   256
 #define VFS_SECTOR_SIZE        4096
 
-#define KRAKKEN4_MAGIC         "KRAKKEN4"
+#define KRAKKEN5_MAGIC         "KRAKKEN5"
+
+/* Per-sector random nonce stored on every write (V5 sector format) */
+#define SECTOR_NONCE_SIZE      24
 
 #endif /* CONFIG_H */

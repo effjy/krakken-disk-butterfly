@@ -602,22 +602,22 @@ static GdkPixbuf* load_app_logo(int size) {
     
     char *cwd = g_get_current_dir();
     char *path_logo1 = g_build_filename(cwd, "krakken_logo.png", NULL);
-    char *path_logo2 = g_build_filename(cwd, "krakken-disk-v4.6.0-gtk4", "krakken_logo.png", NULL);
+    char *path_logo2 = g_build_filename(cwd, "krakken-disk-v5.0.0-gtk4", "krakken_logo.png", NULL);
     char *path1 = g_build_filename(cwd, "krakken-disk.svg", NULL);
-    char *path2 = g_build_filename(cwd, "krakken-disk-v4.6.0-gtk4", "krakken-disk.svg", NULL);
+    char *path2 = g_build_filename(cwd, "krakken-disk-v5.0.0-gtk4", "krakken-disk.svg", NULL);
     
     const char *paths[] = {
         path_logo1,
         path_logo2,
         "krakken_logo.png",
-        "krakken-disk-v4.6.0-gtk4/krakken_logo.png",
+        "krakken-disk-v5.0.0-gtk4/krakken_logo.png",
         "/usr/share/krakken-disk/krakken_logo.png",
         "/usr/local/share/krakken-disk/krakken_logo.png",
         "/usr/share/icons/hicolor/64x64/apps/krakken-disk.svg",
         path1,
         path2,
         "krakken-disk.svg",
-        "krakken-disk-v4.6.0-gtk4/krakken-disk.svg",
+        "krakken-disk-v5.0.0-gtk4/krakken-disk.svg",
         "krakken-disk.png",
         NULL
     };
@@ -840,7 +840,7 @@ static void on_activate(GtkApplication *app, gpointer user_data) {
     GtkWidget *header = gtk_header_bar_new();
     gtk_header_bar_set_show_close_button(GTK_HEADER_BAR(header), TRUE);
     gtk_header_bar_set_title(GTK_HEADER_BAR(header), "Krakken-Disk");
-    gtk_header_bar_set_subtitle(GTK_HEADER_BAR(header), "v4.6.0 \xe2\x80\xa2 Butterfly Edition \xe2\x80\xa2 Secure Volume Manager");
+    gtk_header_bar_set_subtitle(GTK_HEADER_BAR(header), "v5.0.0 \xe2\x80\xa2 Butterfly Edition \xe2\x80\xa2 Secure Volume Manager");
     gtk_window_set_titlebar(GTK_WINDOW(app_state->window), header);
 
     /* Main layout container (Horizontal) */
@@ -1136,12 +1136,12 @@ static void on_activate(GtkApplication *app, gpointer user_data) {
     char *splash_path = NULL;
     char *cwd = g_get_current_dir();
     char *path1 = g_build_filename(cwd, "krakken_logo.png", NULL);
-    char *path2 = g_build_filename(cwd, "krakken-disk-v4.6.0-gtk4", "krakken_logo.png", NULL);
+    char *path2 = g_build_filename(cwd, "krakken-disk-v5.0.0-gtk4", "krakken_logo.png", NULL);
     const char *splash_paths[] = {
         path1,
         path2,
         "krakken_logo.png",
-        "krakken-disk-v4.6.0-gtk4/krakken_logo.png",
+        "krakken-disk-v5.0.0-gtk4/krakken_logo.png",
         "/usr/share/krakken-disk/krakken_logo.png",
         "/usr/local/share/krakken-disk/krakken_logo.png",
         NULL

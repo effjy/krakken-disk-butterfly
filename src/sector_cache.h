@@ -32,16 +32,27 @@ typedef struct {
     
     uint64_t total_sectors;         /* Total sectors in volume */
     size_t data_offset;             /* Offset in file where data area begins */
-    int use_domain_separator;       /* If true, absorb 0x00 domain separator */
 } sector_cache_t;
 
 /* Cache operations */
 sector_cache_t* cache_init(FILE *file, const uint8_t *master_key,
                            const uint8_t *file_key, size_t max_entries,
                            size_t data_offset,      /* byte offset where sectors begin */
-                           uint64_t total_sectors,  /* total encrypted sectors in volume */
-                           int use_domain_separator);
+                           uint64_t total_sectors); /* total encrypted sectors in volume */
 void cache_destroy(sector_cache_t *cache);
+
+/*
+ * sector_encrypt_write – shared V5 sector encryptor.
+ *
+ * Encrypts one VFS_SECTOR_SIZE plaintext sector under `file_key` for logical
+ * index `idx`, generating a fresh random nonce, and writes the on-disk record
+ *   [ciphertext VFS_SECTOR_SIZE][nonce SECTOR_NONCE_SIZE][tag PER_SECTOR_MAC_SIZE]
+ * at the file's current position.  The caller is responsible for seeking `f`
+ * to the correct offset first.  Used by both volume creation and the cache
+ * flush path so the two can never desync.  Returns 0 on success, -1 on error.
+ */
+int sector_encrypt_write(FILE *f, uint64_t idx,
+                         const uint8_t *file_key, const uint8_t *plain);
 
 /* Sector access operations */
 int cache_get_sector(sector_cache_t *cache, uint64_t sector_idx, uint8_t **data);

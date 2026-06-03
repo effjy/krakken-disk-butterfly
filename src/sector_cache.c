@@ -30,167 +30,151 @@
 #define DEFAULT_CACHE_SIZE  4096
 #define PER_SECTOR_MAC_SIZE 32
 
+/* On-disk size of one V5 sector record: ciphertext + nonce + MAC tag. */
+#define SECTOR_RECORD_SIZE  (VFS_SECTOR_SIZE + SECTOR_NONCE_SIZE + PER_SECTOR_MAC_SIZE)
+
+/* Keystream domain string, absorbed unconditionally after key || nonce. */
+#define K5_SECTOR_DOMAIN    "K5SEC"
+#define K5_SECTOR_DOMAIN_LEN 5
+
 /* -------------------------------------------------------------------------
  * Internal helpers
  * ---------------------------------------------------------------------- */
 
-static void sector_nonce(uint64_t idx, uint8_t *nonce, size_t nonce_len) {
-    memset(nonce, 0, nonce_len);
-    for (size_t i = 0; i < 8 && i < nonce_len; i++)
-        nonce[i] = (uint8_t)((idx >> (i * 8)) & 0xFF);
+/* Little-endian 64-bit store (portable) */
+static void store_le64(uint8_t p[8], uint64_t v) {
+    p[0] = (uint8_t)(v);       p[1] = (uint8_t)(v >>  8);
+    p[2] = (uint8_t)(v >> 16); p[3] = (uint8_t)(v >> 24);
+    p[4] = (uint8_t)(v >> 32); p[5] = (uint8_t)(v >> 40);
+    p[6] = (uint8_t)(v >> 48); p[7] = (uint8_t)(v >> 56);
 }
 
 /*
- * apply_keystream – XOR-decrypt `cipher` into `out_plain` using the
- * per-sector stream derived from `sector_key` and `sector_idx`.
- * Extracted as a helper so both decrypt attempts can share it.
+ * derive_sector_key – per-sector key = BLAKE2b(file_key, key=LE64(idx)).
+ * Uses an explicit little-endian index so volumes are portable across
+ * byte orders.
  */
-static void apply_keystream(sector_cache_t *cache, const uint8_t *sector_key, uint64_t sector_idx,
-                             const uint8_t *cipher, uint8_t *out_plain) {
-    uint8_t nonce[NONCE_SIZE];
-    sector_nonce(sector_idx, nonce, NONCE_SIZE);
+static void derive_sector_key(const uint8_t *file_key, uint64_t idx,
+                              uint8_t out_key[KEY_SIZE]) {
+    uint8_t idx_le[8];
+    store_le64(idx_le, idx);
+    crypto_generichash(out_key, KEY_SIZE, file_key, KEY_SIZE, idx_le, sizeof(idx_le));
+}
 
+/*
+ * sector_keystream_xor – derive the V5 keystream from sector_key and the
+ * stored per-sector nonce, and XOR it across `src` into `dst`.
+ *
+ *     keystream = Krakken(sector_key || nonce || "K5SEC")
+ *
+ * Symmetric: used for both encrypt (plain->cipher) and decrypt (cipher->plain).
+ */
+static void sector_keystream_xor(const uint8_t *sector_key, const uint8_t *nonce,
+                                 const uint8_t *src, uint8_t *dst) {
     permut2048_ctx sponge = { .rate = PERMUT2048_RATE };
     permut2048_absorb(&sponge, sector_key, KEY_SIZE);
-    permut2048_absorb(&sponge, nonce, NONCE_SIZE);
-    if (cache->use_domain_separator) {
-        permut2048_absorb(&sponge, (const uint8_t*)"\x00", 1);
-    }
+    permut2048_absorb(&sponge, nonce, SECTOR_NONCE_SIZE);
+    permut2048_absorb(&sponge, (const uint8_t *)K5_SECTOR_DOMAIN, K5_SECTOR_DOMAIN_LEN);
     permut2048_finalize(&sponge);
 
     uint8_t keystream[VFS_SECTOR_SIZE];
     permut2048_squeeze(&sponge, keystream, VFS_SECTOR_SIZE);
     for (size_t i = 0; i < VFS_SECTOR_SIZE; i++)
-        out_plain[i] = cipher[i] ^ keystream[i];
+        dst[i] = src[i] ^ keystream[i];
     secure_zero(keystream, VFS_SECTOR_SIZE);
+    secure_zero(&sponge, sizeof(sponge));
 }
 
 /*
- * encrypt_sector_at – encrypt `plain` and write ciphertext+MAC to the file
- * at the correct offset for `sector_idx`.  Performs its own fseeko().
+ * sector_mac – MAC = BLAKE2b(key=sector_key) over LE64(idx) || nonce || cipher.
+ * The stored nonce is authenticated so it cannot be swapped to redirect the
+ * keystream of an otherwise-valid ciphertext.
+ */
+static void sector_mac(const uint8_t *sector_key, uint64_t idx,
+                       const uint8_t *nonce, const uint8_t *cipher,
+                       uint8_t out_tag[PER_SECTOR_MAC_SIZE]) {
+    uint8_t idx_le[8];
+    store_le64(idx_le, idx);
+    crypto_generichash_state mac;
+    crypto_generichash_init(&mac, sector_key, KEY_SIZE, PER_SECTOR_MAC_SIZE);
+    crypto_generichash_update(&mac, idx_le, sizeof(idx_le));
+    crypto_generichash_update(&mac, nonce, SECTOR_NONCE_SIZE);
+    crypto_generichash_update(&mac, cipher, VFS_SECTOR_SIZE);
+    crypto_generichash_final(&mac, out_tag, PER_SECTOR_MAC_SIZE);
+}
+
+/*
+ * sector_encrypt_write – shared V5 sector encryptor (see header).  Generates a
+ * fresh random nonce on every call, so rewriting a sector never reuses the
+ * keystream.  Writes [cipher][nonce][tag] at the file's current position.
+ */
+int sector_encrypt_write(FILE *f, uint64_t idx,
+                         const uint8_t *file_key, const uint8_t *plain) {
+    uint8_t sector_key[KEY_SIZE];
+    derive_sector_key(file_key, idx, sector_key);
+
+    uint8_t nonce[SECTOR_NONCE_SIZE];
+    random_bytes(nonce, SECTOR_NONCE_SIZE);
+
+    uint8_t cipher[VFS_SECTOR_SIZE];
+    sector_keystream_xor(sector_key, nonce, plain, cipher);
+
+    uint8_t tag[PER_SECTOR_MAC_SIZE];
+    sector_mac(sector_key, idx, nonce, cipher, tag);
+    secure_zero(sector_key, KEY_SIZE);
+
+    int ok = (fwrite(cipher, 1, VFS_SECTOR_SIZE, f) == VFS_SECTOR_SIZE)
+          && (fwrite(nonce, 1, SECTOR_NONCE_SIZE, f) == SECTOR_NONCE_SIZE)
+          && (fwrite(tag, 1, PER_SECTOR_MAC_SIZE, f) == PER_SECTOR_MAC_SIZE);
+    return ok ? 0 : -1;
+}
+
+/*
+ * encrypt_sector_at – seek to the record for `sector_idx` and write it via the
+ * shared sector encryptor.
  */
 static int encrypt_sector_at(sector_cache_t *cache, uint64_t sector_idx,
                               const uint8_t *plain) {
-    const size_t sector_with_mac = VFS_SECTOR_SIZE + PER_SECTOR_MAC_SIZE;
-    const off_t  file_off = (off_t)cache->data_offset
-                          + (off_t)sector_idx * (off_t)sector_with_mac;
+    const off_t file_off = (off_t)cache->data_offset
+                         + (off_t)sector_idx * (off_t)SECTOR_RECORD_SIZE;
 
     if (fseeko(cache->file, file_off, SEEK_SET) != 0)
         return -1;
-
-    uint8_t sector_key[KEY_SIZE];
-    crypto_generichash(sector_key, KEY_SIZE,
-                       cache->file_key, KEY_SIZE,
-                       (const uint8_t *)&sector_idx, sizeof(sector_idx));
-
-    uint8_t nonce[NONCE_SIZE];
-    sector_nonce(sector_idx, nonce, NONCE_SIZE);
-
-    permut2048_ctx sponge = { .rate = PERMUT2048_RATE };
-    permut2048_absorb(&sponge, sector_key, KEY_SIZE);
-    permut2048_absorb(&sponge, nonce, NONCE_SIZE);
-    if (cache->use_domain_separator) {
-        permut2048_absorb(&sponge, (const uint8_t*)"\x00", 1);
-    }
-    permut2048_finalize(&sponge);
-
-    uint8_t cipher[VFS_SECTOR_SIZE], keystream[VFS_SECTOR_SIZE];
-    permut2048_squeeze(&sponge, keystream, VFS_SECTOR_SIZE);
-    for (size_t i = 0; i < VFS_SECTOR_SIZE; i++)
-        cipher[i] = plain[i] ^ keystream[i];
-    secure_zero(keystream, VFS_SECTOR_SIZE);
-
-    uint8_t tag[PER_SECTOR_MAC_SIZE];
-    crypto_generichash_state mac;
-    crypto_generichash_init(&mac, sector_key, KEY_SIZE, PER_SECTOR_MAC_SIZE);
-    crypto_generichash_update(&mac, (const uint8_t *)&sector_idx, sizeof(sector_idx));
-    crypto_generichash_update(&mac, cipher, VFS_SECTOR_SIZE);
-    crypto_generichash_final(&mac, tag, PER_SECTOR_MAC_SIZE);
-    secure_zero(sector_key, KEY_SIZE);
-
-    if (fwrite(cipher, 1, VFS_SECTOR_SIZE, cache->file) != VFS_SECTOR_SIZE)
-        return -1;
-    if (fwrite(tag, 1, PER_SECTOR_MAC_SIZE, cache->file) != PER_SECTOR_MAC_SIZE)
-        return -1;
-    return 0;
+    return sector_encrypt_write(cache->file, sector_idx, cache->file_key, plain);
 }
 
 /*
- * decrypt_sector_at – read and authenticate the sector at `sector_idx`,
- * then decrypt into `out_plain`.
- *
- * Bug 2 fix: each attempt calls fseeko() itself before reading.  The
- * master_key fallback therefore always reads from `file_off`, never from
- * wherever the file pointer ended up after the first failed read.
- *
- * Tries file_key first (all new volumes).  On MAC mismatch it seeks back and
- * retries with master_key for backward compatibility with old volumes.
+ * decrypt_sector_at – read [cipher][nonce][tag] for `sector_idx`, authenticate
+ * under the file_key, and decrypt into `out_plain`.  Single format: no key
+ * fallback.
  */
 static int decrypt_sector_at(sector_cache_t *cache, uint64_t sector_idx,
                               uint8_t *out_plain) {
-    const size_t sector_with_mac = VFS_SECTOR_SIZE + PER_SECTOR_MAC_SIZE;
-    const off_t  file_off = (off_t)cache->data_offset
-                          + (off_t)sector_idx * (off_t)sector_with_mac;
+    const off_t file_off = (off_t)cache->data_offset
+                         + (off_t)sector_idx * (off_t)SECTOR_RECORD_SIZE;
 
-    /* Reused across both attempts (overwritten each time). */
     uint8_t sector_key[KEY_SIZE];
-    uint8_t cipher[VFS_SECTOR_SIZE], stored_tag[PER_SECTOR_MAC_SIZE];
-    uint8_t computed_tag[PER_SECTOR_MAC_SIZE];
-    crypto_generichash_state mac;
+    uint8_t cipher[VFS_SECTOR_SIZE];
+    uint8_t nonce[SECTOR_NONCE_SIZE];
+    uint8_t stored_tag[PER_SECTOR_MAC_SIZE], computed_tag[PER_SECTOR_MAC_SIZE];
 
-    /* ---- Attempt 1: file_key ---- */
     if (fseeko(cache->file, file_off, SEEK_SET) != 0)
         return -1;
 
-    crypto_generichash(sector_key, KEY_SIZE,
-                       cache->file_key, KEY_SIZE,
-                       (const uint8_t *)&sector_idx, sizeof(sector_idx));
-
     if (fread(cipher, 1, VFS_SECTOR_SIZE, cache->file) != VFS_SECTOR_SIZE ||
-        fread(stored_tag, 1, PER_SECTOR_MAC_SIZE, cache->file) != PER_SECTOR_MAC_SIZE) {
-        secure_zero(sector_key, KEY_SIZE);
+        fread(nonce, 1, SECTOR_NONCE_SIZE, cache->file) != SECTOR_NONCE_SIZE ||
+        fread(stored_tag, 1, PER_SECTOR_MAC_SIZE, cache->file) != PER_SECTOR_MAC_SIZE)
         return -1;
-    }
 
-    crypto_generichash_init(&mac, sector_key, KEY_SIZE, PER_SECTOR_MAC_SIZE);
-    crypto_generichash_update(&mac, (const uint8_t *)&sector_idx, sizeof(sector_idx));
-    crypto_generichash_update(&mac, cipher, VFS_SECTOR_SIZE);
-    crypto_generichash_final(&mac, computed_tag, PER_SECTOR_MAC_SIZE);
-
-    if (ct_memcmp(stored_tag, computed_tag, PER_SECTOR_MAC_SIZE) == 0) {
-        apply_keystream(cache, sector_key, sector_idx, cipher, out_plain);
-        secure_zero(sector_key, KEY_SIZE);
-        return 0;
-    }
-
-    /* ---- Attempt 2: master_key (backward compatibility) ---- */
-    /* Seek back to the same sector — the first read advanced the pointer. */
-    if (fseeko(cache->file, file_off, SEEK_SET) != 0) {
-        secure_zero(sector_key, KEY_SIZE);
-        return -1;
-    }
-
-    crypto_generichash(sector_key, KEY_SIZE,
-                       cache->master_key, 32,
-                       (const uint8_t *)&sector_idx, sizeof(sector_idx));
-
-    if (fread(cipher, 1, VFS_SECTOR_SIZE, cache->file) != VFS_SECTOR_SIZE ||
-        fread(stored_tag, 1, PER_SECTOR_MAC_SIZE, cache->file) != PER_SECTOR_MAC_SIZE) {
-        secure_zero(sector_key, KEY_SIZE);
-        return -1;
-    }
-
-    crypto_generichash_init(&mac, sector_key, KEY_SIZE, PER_SECTOR_MAC_SIZE);
-    crypto_generichash_update(&mac, (const uint8_t *)&sector_idx, sizeof(sector_idx));
-    crypto_generichash_update(&mac, cipher, VFS_SECTOR_SIZE);
-    crypto_generichash_final(&mac, computed_tag, PER_SECTOR_MAC_SIZE);
+    derive_sector_key(cache->file_key, sector_idx, sector_key);
+    sector_mac(sector_key, sector_idx, nonce, cipher, computed_tag);
 
     if (ct_memcmp(stored_tag, computed_tag, PER_SECTOR_MAC_SIZE) != 0) {
         secure_zero(sector_key, KEY_SIZE);
         return -1;
     }
 
-    apply_keystream(cache, sector_key, sector_idx, cipher, out_plain);
+    sector_keystream_xor(sector_key, nonce, cipher, out_plain);
     secure_zero(sector_key, KEY_SIZE);
     return 0;
 }
@@ -235,8 +219,7 @@ static size_t lru_victim(sector_cache_t *cache) {
  */
 sector_cache_t *cache_init(FILE *file, const uint8_t *master_key,
                             const uint8_t *file_key, size_t max_entries,
-                            size_t data_offset, uint64_t total_sectors,
-                            int use_domain_separator) {
+                            size_t data_offset, uint64_t total_sectors) {
     if (!file || !master_key || !file_key)
         return NULL;
 
@@ -248,7 +231,6 @@ sector_cache_t *cache_init(FILE *file, const uint8_t *master_key,
     cache->file          = file;
     cache->data_offset   = data_offset;
     cache->total_sectors = total_sectors;
-    cache->use_domain_separator = use_domain_separator;
     cache->cache_size    = 0;  /* unused; zeroed for ABI compatibility */
     memcpy(cache->master_key, master_key, KEY_SIZE);
     memcpy(cache->file_key,   file_key,   KEY_SIZE);

@@ -31,6 +31,7 @@
  */
 
 #define _POSIX_C_SOURCE 200809L
+#define _FILE_OFFSET_BITS 64
 
 #include "aead.h"
 #include "config.h"
@@ -125,27 +126,33 @@ static int copy_file(const char *src, const char *dst) {
     return ret;
 }
 
-/* Three-pass file shred */
+/* Three-pass file shred.
+ * Each pass checks every write and forces the data to stable storage with
+ * fflush + fsync, so a silently-dropped write cannot leave plaintext behind. */
 static void secure_shred(const char *path) {
     FILE *f = fopen(path, "rb+");
     if (!f) return;
-    fseek(f, 0, SEEK_END);
-    long sz = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    if (fseeko(f, 0, SEEK_END) != 0) { fclose(f); return; }
+    off_t sz = ftello(f);
+    if (sz < 0) { fclose(f); return; }
     uint8_t *buf = malloc(65536);
     if (!buf) { fclose(f); return; }
+    int fd = fileno(f);
     for (int pass = 0; pass < 3; pass++) {
-        fseek(f, 0, SEEK_SET);
-        long rem = sz;
+        if (fseeko(f, 0, SEEK_SET) != 0) break;
+        off_t rem = sz;
+        int io_err = 0;
         while (rem > 0) {
             size_t c = (rem > 65536) ? 65536 : (size_t)rem;
             if (pass == 0) memset(buf, 0x00, c);
             else if (pass == 1) memset(buf, 0xFF, c);
             else random_bytes(buf, c);
-            fwrite(buf, 1, c, f);
-            rem -= (long)c;
+            if (fwrite(buf, 1, c, f) != c) { io_err = 1; break; }
+            rem -= (off_t)c;
         }
-        fflush(f);
+        if (io_err) break;
+        if (fflush(f) != 0) break;
+        if (fd >= 0) fsync(fd);
     }
     free(buf);
     fclose(f);
@@ -168,7 +175,8 @@ typedef struct {
     const uint8_t *in;          /* slice of io_buf  (read-only) */
     uint8_t       *out;         /* slice of ct_buf  (write-only, disjoint) */
     size_t         len;         /* bytes in this segment */
-    int            use_parallel_mac;
+    int            mac_domain;  /* absorb keystream domain separator "\x01" */
+    int            compute_mac; /* compute the per-segment MAC */
     int            is_decrypt;
     uint8_t        mac[TAG_SIZE];
 } seg_worker_t;
@@ -188,7 +196,9 @@ static void *seg_worker(void *arg) {
     permut2048_absorb(&ctx, w->key,   w->key_len);
     permut2048_absorb(&ctx, w->nonce, NONCE_SIZE);
     permut2048_absorb(&ctx, idx,      8);
-    if (w->use_parallel_mac) {
+    /* Keystream domain separator. Independent of the MAC decision below so
+     * that changing MAC behaviour can never silently alter the keystream. */
+    if (w->mac_domain) {
         permut2048_absorb(&ctx, (const uint8_t*)"\x01", 1);
     }
     permut2048_finalize(&ctx);
@@ -203,7 +213,7 @@ static void *seg_worker(void *arg) {
     /* Parallel MAC: Hash the ciphertext.
      * Encrypting: w->out is the ciphertext.
      * Decrypting: w->in is the ciphertext. */
-    if (w->use_parallel_mac) {
+    if (w->compute_mac) {
         crypto_generichash_state st;
         crypto_generichash_init(&st, w->key, w->key_len, TAG_SIZE);
         crypto_generichash_update(&st, w->nonce, NONCE_SIZE);
@@ -260,16 +270,19 @@ int permut2048_aead_encrypt_stream(FILE *fout, const char *in_path,
     FILE *fin = fopen(in_path, "rb");
     if (!fin) return -1;
 
-    fseek(fin, 0, SEEK_END);
-    size_t file_size = (size_t)ftell(fin);
-    fseek(fin, 0, SEEK_SET);
+    if (fseeko(fin, 0, SEEK_END) != 0) { fclose(fin); return -1; }
+    off_t file_size_off = ftello(fin);
+    if (file_size_off < 0) { fclose(fin); return -1; }
+    size_t file_size = (size_t)file_size_off;
+    if (fseeko(fin, 0, SEEK_SET) != 0) { fclose(fin); return -1; }
 
-    /* V3: Random Nonce */
+    /* Random Nonce */
     uint8_t nonce[NONCE_SIZE];
     random_bytes(nonce, NONCE_SIZE);
     fwrite(nonce, 1, NONCE_SIZE, fout);
 
-    /* V3: Encrypted Magic */
+    /* Encrypted format magic (authenticates the format under the key and
+     * serves as a fast wrong-password check on decrypt) */
     permut2048_ctx hdr_ctx;
     memset(&hdr_ctx, 0, sizeof(hdr_ctx));
     hdr_ctx.rate = PERMUT2048_RATE;
@@ -281,8 +294,8 @@ int permut2048_aead_encrypt_stream(FILE *fout, const char *in_path,
     
     uint8_t enc_magic[8];
     permut2048_squeeze(&hdr_ctx, enc_magic, 8);
-    const uint8_t v3_magic[8] = "KRAKKEN3";
-    for (int i = 0; i < 8; i++) enc_magic[i] ^= v3_magic[i];
+    const uint8_t v5_magic[8] = "KRAKKEN5";
+    for (int i = 0; i < 8; i++) enc_magic[i] ^= v5_magic[i];
     fwrite(enc_magic, 1, 8, fout);
     
     volatile uint8_t *vp = (volatile uint8_t *)&hdr_ctx;
@@ -336,8 +349,9 @@ int permut2048_aead_encrypt_stream(FILE *fout, const char *in_path,
             workers[n_segs].in      = io_buf + seg_off;
             workers[n_segs].out     = ct_buf + seg_off;
             workers[n_segs].len     = seg_len;
-            workers[n_segs].use_parallel_mac = 1;
-            workers[n_segs].is_decrypt       = 0;
+            workers[n_segs].mac_domain  = 1;
+            workers[n_segs].compute_mac = 1;
+            workers[n_segs].is_decrypt  = 0;
 
             seg_off += seg_len;
             n_segs++;
@@ -386,72 +400,57 @@ int permut2048_aead_decrypt_stream(FILE *fin, const char *out_path,
     int n_threads = get_n_threads();
     size_t batch_size = (size_t)n_threads * ENCRYPT_SEGMENT_SIZE;
 
-    long original_start = ftell(fin);
-
-    /* Check for V2, V3 or V1 */
-    uint8_t magic_or_nonce[8];
+    /* Single-format V5 header: [nonce 12][encrypted magic 8]. */
     uint8_t nonce[NONCE_SIZE];
     uint8_t enc_magic[8];
-    int is_v2 = 0;
-    int is_v3 = 0;
 
-    if (fread(magic_or_nonce, 1, 8, fin) != 8) return -1;
-    
-    if (memcmp(magic_or_nonce, "KRAKKEN1", 8) == 0) {
-        /* V2 legacy format */
-        is_v2 = 1;
-        if (fread(nonce, 1, NONCE_SIZE, fin) != NONCE_SIZE) return -1;
-    } else {
-        /* Could be V1 or V3. Read 4 more bytes to complete a 12-byte nonce */
-        uint8_t nonce_remainder[4];
-        if (fread(nonce_remainder, 1, 4, fin) == 4) {
-            memcpy(nonce, magic_or_nonce, 8);
-            memcpy(nonce + 8, nonce_remainder, 4);
-            
-            /* Try to read 8 more bytes for V3 encrypted magic */
-            if (fread(enc_magic, 1, 8, fin) == 8) {
-                /* Test if it's V3 by decrypting enc_magic */
-                permut2048_ctx hdr_ctx;
-                memset(&hdr_ctx, 0, sizeof(hdr_ctx));
-                hdr_ctx.rate = PERMUT2048_RATE;
-                uint8_t hdr_idx[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-                permut2048_absorb(&hdr_ctx, key, key_len);
-                permut2048_absorb(&hdr_ctx, nonce, NONCE_SIZE);
-                permut2048_absorb(&hdr_ctx, hdr_idx, 8);
-                permut2048_finalize(&hdr_ctx);
-                
-                uint8_t dec_magic[8];
-                permut2048_squeeze(&hdr_ctx, dec_magic, 8);
-                for (int i = 0; i < 8; i++) dec_magic[i] ^= enc_magic[i];
-                
-                volatile uint8_t *vp = (volatile uint8_t *)&hdr_ctx;
-                for (size_t i = 0; i < sizeof(hdr_ctx); i++) vp[i] = 0;
-                
-                if (memcmp(dec_magic, "KRAKKEN3", 8) == 0) {
-                    is_v3 = 1;
-                }
-            }
-        }
-        
-        if (!is_v3) {
-            /* Fallback to V1: The first 12 bytes are the nonce. Rewind. */
-             fseek(fin, original_start + 12, SEEK_SET);
-        }
-    }
+    if (fread(nonce, 1, NONCE_SIZE, fin) != NONCE_SIZE) return -1;
+    if (fread(enc_magic, 1, 8, fin) != 8) return -1;
 
-    long start_pos = ftell(fin);
-    fseek(fin, 0, SEEK_END);
-    long total = ftell(fin);
-    fseek(fin, start_pos, SEEK_SET);
-    if (total < start_pos + (long)TAG_SIZE) return -1;
-    size_t cipher_len = (size_t)(total - start_pos - (long)TAG_SIZE);
+    /* Recover and verify the format magic (wrong key or wrong format fails). */
+    permut2048_ctx hdr_ctx;
+    memset(&hdr_ctx, 0, sizeof(hdr_ctx));
+    hdr_ctx.rate = PERMUT2048_RATE;
+    uint8_t hdr_idx[8] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    permut2048_absorb(&hdr_ctx, key, key_len);
+    permut2048_absorb(&hdr_ctx, nonce, NONCE_SIZE);
+    permut2048_absorb(&hdr_ctx, hdr_idx, 8);
+    permut2048_finalize(&hdr_ctx);
 
-    /* Secure temp file in RAM (tmpfs) */
+    uint8_t dec_magic[8];
+    permut2048_squeeze(&hdr_ctx, dec_magic, 8);
+    for (int i = 0; i < 8; i++) dec_magic[i] ^= enc_magic[i];
+    volatile uint8_t *vp = (volatile uint8_t *)&hdr_ctx;
+    for (size_t i = 0; i < sizeof(hdr_ctx); i++) vp[i] = 0;
+    if (memcmp(dec_magic, "KRAKKEN5", 8) != 0) return -1;
+
+    off_t start_pos = ftello(fin);
+    if (start_pos < 0) return -1;
+    if (fseeko(fin, 0, SEEK_END) != 0) return -1;
+    off_t total = ftello(fin);
+    if (total < 0) return -1;
+    if (fseeko(fin, start_pos, SEEK_SET) != 0) return -1;
+    if (total < start_pos + (off_t)TAG_SIZE) return -1;
+    size_t cipher_len = (size_t)(total - start_pos - (off_t)TAG_SIZE);
+
+    /* Secure temp file in RAM (tmpfs).  Refuse to fall back to on-disk storage
+     * (which would write plaintext to a persistent filesystem) unless the user
+     * explicitly opts in with KRAKKEN_ALLOW_DISK_TMP=1. */
     const char *tmpdir = getenv("TMPDIR");
-    if (!tmpdir) tmpdir = "/dev/shm";
-    if (!is_tmpfs(tmpdir)) {
-        if (is_tmpfs("/dev/shm")) tmpdir = "/dev/shm";
-        else                      tmpdir = "/tmp";
+    if (tmpdir && is_tmpfs(tmpdir)) {
+        /* honour TMPDIR — it is RAM-backed */
+    } else if (is_tmpfs("/dev/shm")) {
+        tmpdir = "/dev/shm";
+    } else {
+        const char *allow = getenv("KRAKKEN_ALLOW_DISK_TMP");
+        if (!(allow && strcmp(allow, "1") == 0)) {
+            fprintf(stderr,
+                    "krakken: refusing to decrypt — no tmpfs available for the "
+                    "plaintext temp file. Set KRAKKEN_ALLOW_DISK_TMP=1 to allow "
+                    "writing plaintext to on-disk temporary storage.\n");
+            return -1;
+        }
+        if (!tmpdir) tmpdir = "/tmp";
     }
     char tmp_path[PATH_MAX];
     snprintf(tmp_path, sizeof(tmp_path), "%s/krakken_decrypt_XXXXXX", tmpdir);
@@ -480,19 +479,11 @@ int permut2048_aead_decrypt_stream(FILE *fin, const char *out_path,
         return -1;
     }
 
-    /* MAC verified over header || ciphertext */
+    /* MAC verified over nonce || enc_magic || per-segment MACs */
     crypto_generichash_state mac;
     crypto_generichash_init(&mac, key, key_len, TAG_SIZE);
-    if (is_v2) {
-        crypto_generichash_update(&mac, (const uint8_t *)"KRAKKEN1", 8);
-        crypto_generichash_update(&mac, nonce, NONCE_SIZE);
-    } else if (is_v3) {
-        crypto_generichash_update(&mac, nonce, NONCE_SIZE);
-        crypto_generichash_update(&mac, enc_magic, 8);
-    } else {
-        /* V1 legacy */
-        crypto_generichash_update(&mac, nonce, NONCE_SIZE);
-    }
+    crypto_generichash_update(&mac, nonce, NONCE_SIZE);
+    crypto_generichash_update(&mac, enc_magic, 8);
 
     uint64_t seg_base  = 0;
     size_t   processed = 0;
@@ -504,11 +495,6 @@ int permut2048_aead_decrypt_stream(FILE *fin, const char *out_path,
 
         size_t n_read = fread(io_buf, 1, to_read, fin);
         if (!n_read) { failed = 1; break; }
-
-        /* Update MAC over ciphertext BEFORE decrypting */
-        if (!is_v2 && !is_v3) {
-            crypto_generichash_update(&mac, io_buf, n_read);
-        }
 
         /* Carve per-thread segments */
         int n_segs = 0;
@@ -524,8 +510,9 @@ int permut2048_aead_decrypt_stream(FILE *fin, const char *out_path,
             workers[n_segs].in      = io_buf + seg_off;
             workers[n_segs].out     = pt_buf + seg_off;
             workers[n_segs].len     = seg_len;
-            workers[n_segs].use_parallel_mac = is_v2 || is_v3;
-            workers[n_segs].is_decrypt       = 1;
+            workers[n_segs].mac_domain  = 1;
+            workers[n_segs].compute_mac = 1;
+            workers[n_segs].is_decrypt  = 1;
 
             seg_off += seg_len;
             n_segs++;
@@ -533,10 +520,8 @@ int permut2048_aead_decrypt_stream(FILE *fin, const char *out_path,
 
         run_parallel_batch(workers, tids, n_segs);
 
-        if (is_v2 || is_v3) {
-            for (int i = 0; i < n_segs; i++) {
-                crypto_generichash_update(&mac, workers[i].mac, TAG_SIZE);
-            }
+        for (int i = 0; i < n_segs; i++) {
+            crypto_generichash_update(&mac, workers[i].mac, TAG_SIZE);
         }
 
         if (fwrite(pt_buf, 1, n_read, ftmp) != n_read) failed = 1;
