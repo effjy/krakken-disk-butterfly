@@ -21,7 +21,7 @@
 #define X448_PRIVKEY_LEN   56
 #define HYBRID_SK_LEN      (KYBER_SECRETKEYBYTES + X448_PRIVKEY_LEN)
 #define WRAP_NONCE_LEN     crypto_aead_xchacha20poly1305_ietf_NPUBBYTES
-#define WRAP_ABYTES        crypto_aead_xchacha20poly1305_ietf_ABYTES
+#define WRAP_ABYTES        32   /* 256-bit duplex tag, matches Kyber-1024 (Level 5) */
 #define WRAP_CIPHERTEXT_LEN (HYBRID_SK_LEN + WRAP_ABYTES)
 #define HEADER_NONCE_LEN   crypto_aead_xchacha20poly1305_ietf_NPUBBYTES
 #define HEADER_KEY_LEN     32

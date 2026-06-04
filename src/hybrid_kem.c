@@ -98,47 +98,43 @@ void generate_hybrid_keypair(uint8_t *kyber_pk, uint8_t *kyber_sk,
 }
 
 void wrap_hybrid_sk(const uint8_t *hybrid_sk, const uint8_t *master_key,
-                    uint8_t *nonce_out, uint8_t *ciphertext_out, int use_krakken) {
+                    uint8_t *nonce_out, uint8_t *ciphertext_out) {
     random_bytes(nonce_out, WRAP_NONCE_LEN);
-    if (use_krakken) {
-        permut2048_ctx ctx;
-        memset(&ctx, 0, sizeof(ctx));
-        ctx.rate = PERMUT2048_RATE;
-        permut2048_absorb(&ctx, master_key, 64);
-        permut2048_absorb(&ctx, nonce_out, WRAP_NONCE_LEN);
-        permut2048_absorb(&ctx, (const uint8_t *)"WRAP", 4);
-        permut2048_finalize(&ctx);
-        permut2048_encrypt(&ctx, hybrid_sk, ciphertext_out, HYBRID_SK_LEN);
-        permut2048_squeeze(&ctx, ciphertext_out + HYBRID_SK_LEN, WRAP_ABYTES);
-        secure_zero(&ctx, sizeof(ctx));
-    } else {
-        crypto_aead_xchacha20poly1305_ietf_encrypt(ciphertext_out, NULL,
-                                                    hybrid_sk, HYBRID_SK_LEN,
-                                                    NULL, 0, NULL, nonce_out, master_key);
-    }
+    permut2048_ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.rate = PERMUT2048_RATE;
+    permut2048_absorb(&ctx, master_key, 64);
+    permut2048_absorb(&ctx, nonce_out, WRAP_NONCE_LEN);
+    permut2048_absorb(&ctx, (const uint8_t *)"WRAP", 4);
+    permut2048_finalize(&ctx);
+    permut2048_encrypt(&ctx, hybrid_sk, ciphertext_out, HYBRID_SK_LEN);
+    permut2048_squeeze(&ctx, ciphertext_out + HYBRID_SK_LEN, WRAP_ABYTES);
+    secure_zero(&ctx, sizeof(ctx));
 }
 
 int unwrap_hybrid_sk(uint8_t *hybrid_sk, const uint8_t *master_key,
-                     const uint8_t *nonce, const uint8_t *ciphertext, int use_krakken) {
-    if (use_krakken) {
-        permut2048_ctx ctx;
-        memset(&ctx, 0, sizeof(ctx));
-        ctx.rate = PERMUT2048_RATE;
-        permut2048_absorb(&ctx, master_key, 64);
-        permut2048_absorb(&ctx, nonce, WRAP_NONCE_LEN);
-        permut2048_absorb(&ctx, (const uint8_t *)"WRAP", 4);
-        permut2048_finalize(&ctx);
-        permut2048_decrypt(&ctx, ciphertext, hybrid_sk, HYBRID_SK_LEN);
-        uint8_t computed_tag[WRAP_ABYTES];
-        permut2048_squeeze(&ctx, computed_tag, WRAP_ABYTES);
-        int ret = ct_memcmp(computed_tag, ciphertext + HYBRID_SK_LEN, WRAP_ABYTES);
-        secure_zero(&ctx, sizeof(ctx));
-        return ret;
-    } else {
-        return crypto_aead_xchacha20poly1305_ietf_decrypt(hybrid_sk, NULL, NULL,
-                                                           ciphertext, WRAP_CIPHERTEXT_LEN,
-                                                           NULL, 0, nonce, master_key);
+                     const uint8_t *nonce, const uint8_t *ciphertext) {
+    permut2048_ctx ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.rate = PERMUT2048_RATE;
+    permut2048_absorb(&ctx, master_key, 64);
+    permut2048_absorb(&ctx, nonce, WRAP_NONCE_LEN);
+    permut2048_absorb(&ctx, (const uint8_t *)"WRAP", 4);
+    permut2048_finalize(&ctx);
+
+    /* Decrypt into scratch; release plaintext only after authentication. */
+    uint8_t plain[HYBRID_SK_LEN];
+    permut2048_decrypt(&ctx, ciphertext, plain, HYBRID_SK_LEN);
+    uint8_t computed_tag[WRAP_ABYTES];
+    permut2048_squeeze(&ctx, computed_tag, WRAP_ABYTES);
+
+    int ret = ct_memcmp(computed_tag, ciphertext + HYBRID_SK_LEN, WRAP_ABYTES);
+    if (ret == 0) {
+        memcpy(hybrid_sk, plain, HYBRID_SK_LEN);
     }
+    secure_zero(plain, sizeof(plain));
+    secure_zero(&ctx, sizeof(ctx));
+    return ret;
 }
 
 int hybrid_encapsulate(uint8_t *shared_secret, uint8_t *kem_ct,

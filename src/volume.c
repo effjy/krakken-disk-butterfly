@@ -55,7 +55,7 @@ int volume_create(const char *path, size_t size_mb, const char *password,
     uint8_t hybrid_sk[HYBRID_SK_LEN];
     memcpy(hybrid_sk, kyber_sk, KYBER_SECRETKEYBYTES);
     memcpy(hybrid_sk + KYBER_SECRETKEYBYTES, x448_sk, X448_PRIVKEY_LEN);
-    wrap_hybrid_sk(hybrid_sk, master_key, wrap_nonce, wrap_ct, 1);
+    wrap_hybrid_sk(hybrid_sk, master_key, wrap_nonce, wrap_ct);
     secure_zero(hybrid_sk, HYBRID_SK_LEN);
     secure_zero(kyber_sk, KYBER_SECRETKEYBYTES);
     secure_zero(x448_sk, X448_PRIVKEY_LEN);
@@ -212,7 +212,7 @@ int volume_open(const char *path, const char *password, volume_context_t *vol,
 
     /* Unwrap hybrid secret key (Krakken duplex wrap) */
     uint8_t hybrid_sk[HYBRID_SK_LEN];
-    if (unwrap_hybrid_sk(hybrid_sk, vol->master_key, wrap_nonce, wrap_ct, 1) != 0) {
+    if (unwrap_hybrid_sk(hybrid_sk, vol->master_key, wrap_nonce, wrap_ct) != 0) {
         secure_zero(vol->master_key, KEY_SIZE);
         fclose(f); return -1;
     }
