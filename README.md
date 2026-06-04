@@ -2,27 +2,35 @@
   <img src="krakken_logo.png" alt="Krakken-Disk Butterfly Logo" width="260"/>
 </div>
 
-# 🐙 Krakken-Disk v5.0.0 (Butterfly Edition)
+<h1 align="center">🐙 Krakken-Disk v5.0.0 (Butterfly Edition)</h1>
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![C Standard: C11](https://img.shields.io/badge/C-C11-blue.svg)](#)
-[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-orange.svg)](#)
-[![Security: Post--Quantum](https://img.shields.io/badge/Security-Post--Quantum--Era-teal.svg)](#)
-[![Manual: PDF](https://img.shields.io/badge/📖_Manual-PDF-red.svg)](MANUAL.pdf)
+<div align="center">
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-teal?style=flat-square&labelColor=1a1a1a)](LICENSE)
+[![C Standard: C11](https://img.shields.io/badge/C_Standard-C11-teal?style=flat-square&labelColor=1a1a1a)](#)
+[![Platform: Linux](https://img.shields.io/badge/Platform-Linux-8a2be2?style=flat-square&labelColor=1a1a1a)](#)
+[![Security: Post--Quantum](https://img.shields.io/badge/Security-Post--Quantum--Era-teal?style=flat-square&labelColor=1a1a1a)](#)
+[![Manual: PDF](https://img.shields.io/badge/%F0%9F%93%96_Manual-PDF-800080?style=flat-square&labelColor=1a1a1a)](MANUAL.pdf)
+
+<br>
+
+**Krakken-Disk (Butterfly Edition)** is an ultra-secure, high-performance encrypted disk manager engineered specifically for the post-quantum era. Powered by the massive 2048-bit **Krakken-2048 Butterfly** permutation, Krakken-Disk provides a uniform 256-bit post-Grover security margin across all volume layers. By combining cutting-edge lattice-based cryptography, elliptic curve cryptography, and hardware-accelerated AVX2 SIMD architectures, it ensures your data remains completely private even against future quantum computing adversaries. It features a faster 8‑round design and XRBD diffusion over legacy Krakken-Disk.
+
+</div>
+
+<br>
 
 ---
 
 ## 📸 Screenshot
 
 <div align="center">
-  <img src="screenshot.png" alt="Krakken-Disk Graphical User Interface Screenshot" width="800"/>
-  <br/>
+  <img src="screenshot.png" alt="Krakken-Disk Graphical User Interface Screenshot" width="800" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);"/>
+  <br/><br/>
   <em>The Krakken-Disk main dashboard — dark-themed GTK interface for volume management</em>
 </div>
 
----
-
-**Krakken-Disk (Butterfly Edition)** is an ultra-secure, high-performance encrypted disk manager engineered specifically for the post-quantum era. Powered by the massive 2048-bit **Krakken-2048 Butterfly** permutation, Krakken-Disk provides a uniform 256-bit post-Grover security margin across all volume layers. By combining cutting-edge lattice-based cryptography, elliptic curve cryptography, and hardware-accelerated AVX2 SIMD architectures, it ensures your data remains completely private even against future quantum computing adversaries. Same features as Krakken‑Disk, but with the Krakken‑2048 Butterfly permutation – faster 8‑round design and XRBD diffusion.
+<br>
 
 ---
 
@@ -36,34 +44,39 @@ For a detailed changelog from version 4.6.0 to 5.0.0, please refer to:
 
 </div>
 
-> This file documents all breaking changes, new features, performance improvements, and bug fixes introduced in the 5.0.0 release.
+> [!NOTE]
+> `VERSION.md` documents all breaking changes, new features, performance improvements, and bug fixes introduced in the 5.0.0 release.
+
+<br>
 
 ---
 
 ## 🌌 Key Highlights
 
-*   🛡️ **Post-Quantum Security Margin**: Native 2048-bit wide-state permutation providing a uniform 256-bit post-Grover security margin (Header & Data layers).
-*   🧬 **Hybrid Key Encapsulation (KEM)**: Combines post-quantum **Kyber-1024** (lattice-based) and classical **X448** (elliptic curve Diffie-Hellman) to secure master and file keys.
-*   ⚡ **Krakken-2048 Butterfly Permutation Core**: Hand-tuned **AVX2 SIMD** vectorizations with register-only MDS mixing and column pressure steps for maximum performance on modern CPUs.
-*   🌑 **Plausible Deniability**: Full **IND-RND** compliance—volumes have no identifiable headers, signatures, or metadata blocks, rendering them mathematically indistinguishable from raw thermal noise or random data.
-*   🔒 **Anti-Brute Force Protection**: Uses **Argon2id** key derivation locked with 1 GB of RAM to render GPU- and ASIC-based brute-force attacks economically and computationally impossible.
-*   🔄 **Dual-Generation Compatibility**: Seamless trial-decryption supports legacy V3 volumes (XChaCha) and next-generation V4 volumes (Krakken-2048).
-*   🐧 **FUSE 3 Mounting**: Exposes encrypted containers as transparent, read-write filesystem directories in user space.
+- 🛡️ **Post-Quantum Security Margin** — Native 2048-bit wide-state permutation providing a uniform 256-bit post-Grover security margin (Header & Data layers).
+- 🧬 **Hybrid Key Encapsulation (KEM)** — Combines post-quantum **Kyber-1024** (lattice-based) and classical **X448** (elliptic curve Diffie-Hellman) to secure master and file keys.
+- ⚡ **Krakken-2048 Butterfly Permutation Core** — Hand-tuned **AVX2 SIMD** vectorizations with register-only MDS mixing and column pressure steps for maximum performance on modern CPUs.
+- 🌑 **Plausible Deniability** — Full **IND-RND** compliance: volumes have no identifiable headers, signatures, or metadata blocks, rendering them mathematically indistinguishable from raw thermal noise or random data.
+- 🔒 **Anti-Brute Force Protection** — Uses **Argon2id** key derivation locked with 1 GB of RAM to render GPU- and ASIC-based brute-force attacks economically and computationally impossible.
+- 🔄 **Dual-Generation Compatibility** — Seamless trial-decryption supports legacy V3 volumes (XChaCha) and next-generation V4 volumes (Krakken-2048).
+- 🐧 **FUSE 3 Mounting** — Exposes encrypted containers as transparent, read-write filesystem directories in user space.
+
+<br>
 
 ---
 
 ## 💻 System Requirements
 
-- **CPU**: Intel processor with **AVX2** support (or AVX‑512, which includes AVX2).  
-  *AMD processors with AVX2 also work, but the code is specifically optimized for Intel's AVX2 implementation.*
-- **RAM**: 2 GB minimum (4 GB+ recommended for comfortable use with Argon2id 1 GB setting).
-- **OS**: Linux (kernel 4.4+ recommended).  
-  *Other Unix-like systems may work with FUSE and libsodium, but are not officially tested.*
+- 🧠 **CPU** — Intel processor with **AVX2** support (or AVX-512, which includes AVX2). *AMD processors with AVX2 also work, but the codebase is highly optimized for Intel's hardware architecture.*
+- 💾 **RAM** — 2 GB minimum (4 GB+ recommended for comfortable use with the Argon2id 1 GB memory ceiling setting).
+- 🐧 **OS** — Linux (kernel 4.4+ recommended). *Other Unix-like platforms may run FUSE/libsodium, but are not officially tested.*
 
 > [!NOTE]
-> To check if your CPU supports AVX2, run:  
+> To verify if your CPU supports the AVX2 instruction set, execute:  
 > `grep -o 'avx2' /proc/cpuinfo | head -1`  
-> If it returns `avx2`, you are ready.
+> If it outputs `avx2`, your processor meets the requirement.
+
+<br>
 
 ---
 
@@ -77,7 +90,10 @@ A complete **User & Technical Manual** is available as a downloadable PDF. It co
 
 </div>
 
-> 💡 The manual is the most thorough reference for Krakken-Disk. Start with the sections below for a quick overview, then consult [`MANUAL.pdf`](MANUAL.pdf) for in-depth technical detail.
+> [!TIP]
+> The manual is the most thorough reference for Krakken-Disk. Start with the sections below for a quick overview, then consult [`MANUAL.pdf`](MANUAL.pdf) for in-depth technical detail.
+
+<br>
 
 ---
 
@@ -102,7 +118,7 @@ graph TD
 The permutation executes **8 rounds**, each composed of nine distinct layers in sequential order:
 
 | Layer | Name | Type | Description |
-|-------|------|------|-------------|
+| :--- | :--- | :--- | :--- |
 | **L1** | $\Theta$ (Theta) | SPN | Column parity mixing |
 | **L2** | $\Sigma$ (Sigma) | SPN | Circulant MDS over GF($2^8$) |
 | **L3** | $\rho$ (Rho) | SPN | Per-word rotation |
@@ -127,10 +143,10 @@ $$
 $$
 
 **Key Properties:**
-- **Bijective:** Each crossover step is invertible (Theorem 1 in paper)
-- **Complete Dependency:** Achieves $\log_2(32) = 5$ stages for full word-level mixing (Theorem 2)
-- **Optimal:** Matches the theoretical lower bound for pairwise-mixing networks (Theorem 3)
-- **Rotation-Enhanced:** Asymmetric rotation constants break bit-aligned symmetries
+- **Bijective:** Each crossover step is invertible (Theorem 1 in paper).
+- **Complete Dependency:** Achieves $\log_2(32) = 5$ stages for full word-level mixing (Theorem 2).
+- **Optimal:** Matches the theoretical lower bound for pairwise-mixing networks (Theorem 3).
+- **Rotation-Enhanced:** Asymmetric rotation constants break bit-aligned symmetries.
 
 ### Layer 7 — PRESSURE: ARX Mixing
 
@@ -163,15 +179,15 @@ The multiplier $7$ (coprime to $32$) generates a full 32-cycle, ensuring every w
 
 Operating over a 2048-bit state (32 × 64-bit lanes) structured as a 4×8 column grid, each round executes:
 
-1. **$\Theta$ (Theta)** — Column parity mixing
-2. **$\Sigma$ (Sigma)** — Circulant MDS over GF($2^8$)
-3. **$\rho$ (Rho)** — Per-word rotations
-4. **$\Pi$ (Pi)** — Column permutation
-5. **$\chi$ (Chi)** — ABYSSAL S-box (cross-coupled pairs)
-6. **Butterfly Diffusion (XRBD)** — 5-stage XOR-rotation network
-7. **PRESSURE** — ARX mixing with carry propagation
-8. **$\iota$ (Iota)** — Round constant addition (per-word)
-9. **InkCloud** — Global word permutation + rotation
+1. **$\Theta$ (Theta)** — Column parity mixing.
+2. **$\Sigma$ (Sigma)** — Circulant MDS over GF($2^8$).
+3. **$\rho$ (Rho)** — Per-word rotations.
+4. **$\Pi$ (Pi)** — Column permutation.
+5. **$\chi$ (Chi)** — ABYSSAL S-box (cross-coupled pairs).
+6. **Butterfly Diffusion (XRBD)** — 5-stage XOR-rotation network.
+7. **PRESSURE** — ARX mixing with carry propagation.
+8. **$\iota$ (Iota)** — Round constant addition (per-word).
+9. **InkCloud** — Global word permutation + rotation.
 
 ### High-Performance AEAD Stream Encryption
 
@@ -180,6 +196,8 @@ For file operations, Krakken-Disk divides streams into fixed 4 MB segments. Each
 $$\text{keystream}_i = \text{Krakken-Sponge}(\text{FileKey} \mathbin{\Vert} \text{Nonce} \mathbin{\Vert} \text{LE64}(i))$$
 
 A BLAKE2b-256 MAC is computed over the entire stream for ciphertext authentication.
+
+<br>
 
 ---
 
@@ -195,7 +213,7 @@ To compile and run Krakken-Disk on Linux, ensure you have the following packages
 ### Required Libraries
 - **libsodium** (Cryptographic primitives)
 - **libcrypto** (OpenSSL EVP for X448 scalarmult)
-- **FUSE 3** (`libfuse3-dev` / `fuse3` - Virtual filesystem interface)
+- **FUSE 3** (`libfuse3-dev` / `fuse3` — Virtual filesystem interface)
 
 ### Graphical User Interface (GTK)
 - **GTK 3** or **GTK 4** development libraries (used to build the modern dark-themed graphical dashboard)
@@ -206,6 +224,8 @@ To compile and run Krakken-Disk on Linux, ensure you have the following packages
 sudo apt update
 sudo apt install build-essential pkg-config libsodium-dev libssl-dev libfuse3-dev libgtk-3-dev libncurses5-dev
 ```
+
+<br>
 
 ---
 
@@ -222,6 +242,7 @@ To build the optimized production binary (automatically detects CPU features and
 ```bash
 make
 ```
+
 *To inspect the underlying compiler flags and commands during build, run in verbose mode:*
 ```bash
 make V=1
@@ -239,6 +260,8 @@ To completely remove Krakken-Disk and its configuration entries from the host sy
 sudo make uninstall
 ```
 
+<br>
+
 ---
 
 ## 🚀 How to Use
@@ -250,6 +273,7 @@ If installed globally, launch Krakken-Disk from your desktop applications menu, 
 ```bash
 krakken-disk
 ```
+
 Alternatively, execute it out of the build directory:
 ```bash
 make run
@@ -271,6 +295,8 @@ make run
 5. You can now read, write, copy, and modify files within that folder.
 6. Once finished, click **Unmount** and **Close** to flush all modifications to disk and lock the cryptographic keys.
 
+<br>
+
 ---
 
 ## 🔒 Security Best Practices
@@ -285,11 +311,13 @@ make run
 >
 > Krakken-Disk attempts to call `sodium_mlock` on all sensitive key containers, file handles, and cache sectors to prevent them from being paged out to disk. To enable this, ensure your user shell has sufficient limits or run the program with elevated privileges.
 
+<br>
+
 ---
 
 ## 👥 Authors & Contact
 
-- **Lead Cryptographer & GUI Developer**: Jean-Francois Lachance-Caumartin (Effjy)
-- **Contact**: [effjy@protonmail.com](mailto:effjy@protonmail.com)
+- **Lead Cryptographer & GUI Developer** — Jean-Francois Lachance-Caumartin (Effjy)
+- **Contact** — [effjy@protonmail.com](mailto:effjy@protonmail.com)
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
