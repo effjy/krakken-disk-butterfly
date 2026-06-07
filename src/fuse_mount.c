@@ -23,7 +23,7 @@ struct fuse_thread_data {
     char mountpoint[1024];
 };
 
-static int tsuki_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
+static int krakken_getattr(const char *path, struct stat *stbuf, struct fuse_file_info *fi) {
     (void) fi;
     memset(stbuf, 0, sizeof(struct stat));
     
@@ -46,7 +46,7 @@ static int tsuki_getattr(const char *path, struct stat *stbuf, struct fuse_file_
     return 0;
 }
 
-static int tsuki_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+static int krakken_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
                          off_t offset, struct fuse_file_info *fi,
                          enum fuse_readdir_flags flags) {
     (void) offset;
@@ -65,7 +65,7 @@ static int tsuki_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
     return 0;
 }
 
-static int tsuki_open(const char *path, struct fuse_file_info *fi) {
+static int krakken_open(const char *path, struct fuse_file_info *fi) {
     (void)fi;
     if (vfs_find_file(&g_vol->vfs, path + 1) < 0) {
         return -ENOENT;
@@ -73,7 +73,7 @@ static int tsuki_open(const char *path, struct fuse_file_info *fi) {
     return 0;
 }
 
-static int tsuki_read(const char *path, char *buf, size_t size, off_t offset,
+static int krakken_read(const char *path, char *buf, size_t size, off_t offset,
                       struct fuse_file_info *fi) {
     (void) fi;
     int idx = vfs_find_file(&g_vol->vfs, path + 1);
@@ -92,7 +92,7 @@ static int tsuki_read(const char *path, char *buf, size_t size, off_t offset,
     return size;
 }
 
-static int tsuki_write(const char *path, const char *buf, size_t size,
+static int krakken_write(const char *path, const char *buf, size_t size,
                        off_t offset, struct fuse_file_info *fi) {
     (void) fi;
     int idx = vfs_find_file(&g_vol->vfs, path + 1);
@@ -114,13 +114,13 @@ static int tsuki_write(const char *path, const char *buf, size_t size,
     return size;
 }
 
-static int tsuki_truncate(const char *path, off_t size, struct fuse_file_info *fi) {
+static int krakken_truncate(const char *path, off_t size, struct fuse_file_info *fi) {
     (void)fi;
     if (vfs_resize_file(&g_vol->vfs, path + 1, size) != 0) return -ENOSPC;
     return 0;
 }
 
-static int tsuki_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
+static int krakken_create(const char *path, mode_t mode, struct fuse_file_info *fi) {
     (void)mode;
     (void)fi;
     if (strlen(path + 1) >= VFS_MAX_FILENAME_LEN) return -ENAMETOOLONG;
@@ -128,47 +128,47 @@ static int tsuki_create(const char *path, mode_t mode, struct fuse_file_info *fi
     return 0;
 }
 
-static int tsuki_unlink(const char *path) {
+static int krakken_unlink(const char *path) {
     if (vfs_delete_file(&g_vol->vfs, path + 1) != 0) return -ENOENT;
     return 0;
 }
 
-static int tsuki_rename(const char *from, const char *to, unsigned int flags) {
+static int krakken_rename(const char *from, const char *to, unsigned int flags) {
     if (flags) return -EINVAL;
     if (strlen(to + 1) >= VFS_MAX_FILENAME_LEN) return -ENAMETOOLONG;
     if (vfs_rename_file(&g_vol->vfs, from + 1, to + 1) != 0) return -ENOENT;
     return 0;
 }
 
-static int tsuki_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
+static int krakken_utimens(const char *path, const struct timespec tv[2], struct fuse_file_info *fi) {
     (void)fi;
     if (vfs_update_timestamps(&g_vol->vfs, path + 1, tv[0].tv_sec, tv[1].tv_sec) != 0) return -ENOENT;
     return 0;
 }
 
-static int tsuki_chmod(const char *path, mode_t mode, struct fuse_file_info *fi) {
+static int krakken_chmod(const char *path, mode_t mode, struct fuse_file_info *fi) {
     (void)path; (void)mode; (void)fi;
     return 0;
 }
 
-static int tsuki_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
+static int krakken_chown(const char *path, uid_t uid, gid_t gid, struct fuse_file_info *fi) {
     (void)path; (void)uid; (void)gid; (void)fi;
     return 0;
 }
 
-static const struct fuse_operations tsuki_oper = {
-    .getattr    = tsuki_getattr,
-    .readdir    = tsuki_readdir,
-    .open       = tsuki_open,
-    .read       = tsuki_read,
-    .write      = tsuki_write,
-    .truncate   = tsuki_truncate,
-    .create     = tsuki_create,
-    .unlink     = tsuki_unlink,
-    .rename     = tsuki_rename,
-    .utimens    = tsuki_utimens,
-    .chmod      = tsuki_chmod,
-    .chown      = tsuki_chown,
+static const struct fuse_operations krakken_oper = {
+    .getattr    = krakken_getattr,
+    .readdir    = krakken_readdir,
+    .open       = krakken_open,
+    .read       = krakken_read,
+    .write      = krakken_write,
+    .truncate   = krakken_truncate,
+    .create     = krakken_create,
+    .unlink     = krakken_unlink,
+    .rename     = krakken_rename,
+    .utimens    = krakken_utimens,
+    .chmod      = krakken_chmod,
+    .chown      = krakken_chown,
 };
 
 static void *fuse_thread_func(void *arg) {
@@ -196,7 +196,7 @@ int start_fuse_mount(volume_context_t *vol, const char *mountpoint) {
     
     fuse_opt_add_arg(&tdata->args, "krakken-disk");
     
-    g_fuse = fuse_new(&tdata->args, &tsuki_oper, sizeof(tsuki_oper), NULL);
+    g_fuse = fuse_new(&tdata->args, &krakken_oper, sizeof(krakken_oper), NULL);
     if (!g_fuse) {
         fuse_opt_free_args(&tdata->args);
         free(tdata);

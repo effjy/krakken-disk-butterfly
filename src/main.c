@@ -23,7 +23,7 @@ int main(int argc, char **argv) {
         return 1;
     }
     
-    /* Initialize Tsuki-2048 round constants */
+    /* Initialize Krakken-2048 round constants */
     init_rc_vectors();
     
     printf("%s v%s - %s\n", APP_NAME, APP_VERSION, APP_TITLE);

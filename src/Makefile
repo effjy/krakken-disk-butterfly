@@ -1,5 +1,5 @@
-# Makefile for Tsuki-Disk
-# Tsuki-2048 Encrypted Disk Manager
+# Makefile for Krakken-Disk
+# Krakken-2048 Encrypted Disk Manager
 
 # Compiler and flags
 CC = gcc
@@ -179,7 +179,7 @@ check-deps:
 
 # Help
 help:
-	@echo "Tsuki-Disk Makefile"
+	@echo "Krakken-Disk Makefile"
 	@echo "=================="
 	@echo "Targets:"
 	@echo "  all          - Build the application (default)"

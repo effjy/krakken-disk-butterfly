@@ -1,15 +1,15 @@
 /*
- * aead.c — Tsuki-Disk parallel AEAD encrypt / decrypt
+ * aead.c — Krakken-Disk parallel AEAD encrypt / decrypt
  *
  * Encryption model:
  *   The file is split into fixed-size segments (ENCRYPT_SEGMENT_SIZE = 4 MB).
  *   Each segment i has its own independent keystream derived as:
  *
- *       keystream_i = Tsuki-Sponge(key || nonce || LE64(i)) → squeeze(segment_len)
+ *       keystream_i = Krakken-Sponge(key || nonce || LE64(i)) → squeeze(segment_len)
  *
  *   Because segment indices are distinct, all segments are fully independent
  *   and can be processed in parallel using one thread per segment.
- *   The number of threads is taken from the TSUKI_THREADS environment variable
+ *   The number of threads is taken from the KRAKKEN_THREADS environment variable
  *   (default: number of online CPUs, capped at ENCRYPT_MAX_THREADS = 8).
  *
  * Wire format (incompatible with v1 sequential sponge):
@@ -74,7 +74,7 @@ static void store_le64(uint8_t p[8], uint64_t v) {
 }
 
 static int get_n_threads(void) {
-    const char *e = getenv("TSUKI_THREADS");
+    const char *e = getenv("KRAKKEN_THREADS");
     if (e && *e) {
         int v = atoi(e);
         if (v >= 1 && v <= ENCRYPT_MAX_THREADS) return v;

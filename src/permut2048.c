@@ -34,7 +34,7 @@ static inline void krakken_permute(uint64_t state[32]) {
 }
 
 /* -------------------------------------------------------------------------
- * Secure zero — volatile function-pointer trick, same as tsuki_avx2_multi.c
+ * Secure zero — volatile function-pointer trick, same as krakken_multi.c
  * ---------------------------------------------------------------------- */
 static void p_memset_wrap(void *p, int c, size_t n) { memset(p, c, n); }
 static void (* volatile p_memset_vol)(void *, int, size_t) = p_memset_wrap;
