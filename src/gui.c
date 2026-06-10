@@ -116,38 +116,38 @@ static void update_telemetry(AppState *app) {
         char *path = app->current_volume->path;
         if (path && *path) {
             char *base = g_path_get_basename(path);
-            char *markup = g_strdup_printf("<span font_desc='monospace 10' color='#F1F1F0'>%s</span>", base);
+            char *markup = g_strdup_printf("<span font_desc='monospace 10' color='#F2603C'>%s</span>", base);
             gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_path), markup);
             g_free(base);
             g_free(markup);
         } else {
-            gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_path), "<span color='#8B8B85'>None</span>");
+            gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_path), "<span color='#7C7888'>None</span>");
         }
     } else {
         const char *entry_path = gtk_entry_get_text(GTK_ENTRY(app->volume_path_entry));
         if (entry_path && *entry_path) {
             char *base = g_path_get_basename(entry_path);
-            char *markup = g_strdup_printf("<span font_desc='monospace 10' color='#8B8B85'>%s (unopened)</span>", base);
+            char *markup = g_strdup_printf("<span font_desc='monospace 10' color='#7C7888'>%s (unopened)</span>", base);
             gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_path), markup);
             g_free(base);
             g_free(markup);
         } else {
-            gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_path), "<span color='#8B8B85'>None</span>");
+            gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_path), "<span color='#7C7888'>None</span>");
         }
     }
     
     /* 2. Decryption Lock State */
     if (app->current_volume && app->current_volume->is_open) {
-        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_lock), "<span color='#34C759'>●</span> UNLOCKED");
+        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_lock), "<span color='#34D399'>●</span> <span color='#34D399' weight='bold'>UNLOCKED</span>");
     } else {
-        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_lock), "<span color='#E53935'>●</span> LOCKED");
+        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_lock), "<span color='#FB7185'>●</span> <span color='#FB7185' weight='bold'>LOCKED</span>");
     }
     
     /* 3. Mount Status */
     if (app->current_volume && app->current_volume->is_open && app->current_volume->vfs.is_mounted) {
-        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_mount), "<span color='#34C759'>●</span> ACTIVE");
+        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_mount), "<span color='#34D399'>●</span> <span color='#34D399' weight='bold'>ACTIVE</span>");
     } else {
-        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_mount), "<span color='#E53935'>●</span> INACTIVE");
+        gtk_label_set_markup(GTK_LABEL(app->lbl_telemetry_mount), "<span color='#7C7888'>●</span> <span color='#7C7888' weight='bold'>INACTIVE</span>");
     }
 }
 
@@ -475,7 +475,7 @@ static void add_feature_row(GtkWidget *box, const char *title, const char *desc,
     GtkWidget *text_vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 2);
     
     GtkWidget *title_label = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(title_label), g_strdup_printf("<span weight='bold' size='large' color='#E05C36'>%s</span>", title));
+    gtk_label_set_markup(GTK_LABEL(title_label), g_strdup_printf("<span weight='bold' size='large' color='#FB7185'>%s</span>", title));
     gtk_label_set_xalign(GTK_LABEL(title_label), 0.0);
     gtk_box_pack_start(GTK_BOX(text_vbox), title_label, FALSE, FALSE, 0);
     
@@ -521,11 +521,11 @@ static void on_about_clicked(GtkWidget *widget, gpointer data) {
     }
     
     GtkWidget *name_label = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(name_label), "<span size='large' weight='bold' color='#F1F1F0'>Krakken-Disk - Butterfly Edition</span>");
+    gtk_label_set_markup(GTK_LABEL(name_label), "<span size='x-large' weight='bold' color='#F7F5F8'>KRAKKEN-DISK</span>  <span size='large' color='#908C99'>Butterfly Edition</span>");
     gtk_box_pack_start(GTK_BOX(main_vbox), name_label, FALSE, FALSE, 0);
     
     GtkWidget *ver_label = gtk_label_new(NULL);
-    gtk_label_set_markup(GTK_LABEL(ver_label), g_strdup_printf("<span color='#E05C36'>Version %s \xe2\x80\xa2 Butterfly Edition</span>", APP_VERSION));
+    gtk_label_set_markup(GTK_LABEL(ver_label), g_strdup_printf("<span color='#F2603C' weight='bold' letter_spacing='2000'>VERSION %s</span>", APP_VERSION));
     gtk_box_pack_start(GTK_BOX(main_vbox), ver_label, FALSE, FALSE, 2);
     
     GtkWidget *sep_top = gtk_separator_new(GTK_ORIENTATION_HORIZONTAL);
@@ -563,7 +563,7 @@ static void on_about_clicked(GtkWidget *widget, gpointer data) {
     /* Footer / Author */
     GtkWidget *footer_label = gtk_label_new(NULL);
     gtk_label_set_markup(GTK_LABEL(footer_label), 
-        "<span size='small' color='#8B8B85'>Created by Jean-Francois Lachance-Caumartin (Effjy)\n"
+        "<span size='small' color='#7C7888'>Created by Jean-Francois Lachance-Caumartin (Effjy)\n"
         "Contact: effjy@protonmail.com</span>");
     gtk_label_set_justify(GTK_LABEL(footer_label), GTK_JUSTIFY_CENTER);
     gtk_box_pack_start(GTK_BOX(main_vbox), footer_label, FALSE, FALSE, 10);
@@ -681,127 +681,194 @@ static void on_activate(GtkApplication *app, gpointer user_data) {
     app_state->show_password = 0;
     app_state->current_volume = NULL;
 
-    /* Apply modern CSS styling */
+    /* ====================================================================
+     * Krakken "Butterfly" design system
+     * Deep charcoal canvas, glassy layered cards, and a signature
+     * coral -> magenta "wing" gradient for brand + primary actions.
+     * ==================================================================== */
     GtkCssProvider *css_provider = gtk_css_provider_new();
-    const gchar *css_data = 
+    const gchar *css_data =
+        /* ---- Global canvas ---- */
         "window, dialog {\n"
-        "    background-color: #191919;\n"
-        "    color: #F1F1F0;\n"
+        "    background-color: #0E0D11;\n"
+        "    color: #F2F1F4;\n"
         "    font-family: 'Inter', 'Roboto', 'Segoe UI', sans-serif;\n"
+        "    font-size: 12px;\n"
         "}\n"
-        ".sidebar {\n"
-        "    background-color: #131313;\n"
-        "    border-right: 1px solid #2E2E2E;\n"
+        /* ---- Title bar ---- */
+        "headerbar {\n"
+        "    background: linear-gradient(180deg, #1A171D, #110F13);\n"
+        "    border-bottom: 1px solid rgba(232,75,138,0.25);\n"
+        "    box-shadow: 0 1px 0 rgba(242,96,60,0.12);\n"
+        "    min-height: 38px;\n"
         "}\n"
-        ".main-content {\n"
-        "    background-color: #191919;\n"
-        "}\n"
-        ".card {\n"
-        "    background-color: #222222;\n"
-        "    border: 1px solid #2E2E2E;\n"
-        "    border-radius: 8px;\n"
-        "    padding: 10px;\n"
-        "}\n"
-        ".card-title {\n"
-        "    font-size: 11px;\n"
-        "    font-weight: bold;\n"
-        "    color: #E05C36;\n"
-        "    letter-spacing: 1.5px;\n"
-        "    margin-bottom: 5px;\n"
-        "}\n"
-        ".brand-title {\n"
+        "headerbar .title {\n"
         "    font-weight: 800;\n"
-        "    font-size: 16px;\n"
-        "    color: #F1F1F0;\n"
-        "    letter-spacing: 2.0px;\n"
+        "    letter-spacing: 3px;\n"
+        "    color: #F7F5F8;\n"
+        "}\n"
+        "headerbar .subtitle { color: #908C99; letter-spacing: 1px; }\n"
+        /* ---- Structural panes ---- */
+        ".sidebar {\n"
+        "    background: linear-gradient(180deg, #100E13, #0A080C);\n"
+        "    border-right: 1px solid rgba(242,96,60,0.18);\n"
+        "}\n"
+        ".main-content { background-color: #0E0D11; }\n"
+        /* ---- Glass cards ---- */
+        ".card {\n"
+        "    background: linear-gradient(160deg, #1E1B22, #161319);\n"
+        "    border: 1px solid rgba(255,255,255,0.06);\n"
+        "    border-radius: 14px;\n"
+        "    padding: 14px;\n"
+        "    box-shadow: 0 6px 18px rgba(0,0,0,0.45);\n"
+        "}\n"
+        ".card:hover { border: 1px solid rgba(242,96,60,0.24); }\n"
+        ".card-title {\n"
+        "    font-size: 10px;\n"
+        "    font-weight: 800;\n"
+        "    color: #F2603C;\n"
+        "    letter-spacing: 2.5px;\n"
+        "    margin-bottom: 6px;\n"
+        "}\n"
+        /* ---- Brand block ---- */
+        ".brand-title {\n"
+        "    font-weight: 900;\n"
+        "    font-size: 22px;\n"
+        "    color: #F7F5F8;\n"
+        "    letter-spacing: 6px;\n"
+        "    text-shadow: 0 0 16px rgba(232,75,138,0.55);\n"
         "}\n"
         ".brand-subtitle {\n"
         "    font-size: 9px;\n"
-        "    color: #E05C36;\n"
-        "    letter-spacing: 1.5px;\n"
+        "    font-weight: 700;\n"
+        "    color: #E84B8A;\n"
+        "    letter-spacing: 3px;\n"
         "}\n"
+        /* ---- Telemetry ---- */
         ".telemetry-label {\n"
-        "    font-size: 11px;\n"
-        "    color: #8B8B85;\n"
-        "    font-weight: bold;\n"
+        "    font-size: 10px;\n"
+        "    color: #7C7888;\n"
+        "    font-weight: 800;\n"
+        "    letter-spacing: 1px;\n"
         "}\n"
         ".telemetry-value {\n"
-        "    font-family: 'DejaVu Sans Mono', 'Liberation Mono', monospace;\n"
+        "    font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace;\n"
         "    font-size: 11px;\n"
-        "    color: #F1F1F0;\n"
+        "    color: #F2F1F4;\n"
         "}\n"
+        /* ---- Inputs ---- */
         "entry {\n"
-        "    background-color: #191919;\n"
-        "    color: #F1F1F0;\n"
-        "    border: 1px solid #2E2E2E;\n"
-        "    border-radius: 6px;\n"
-        "    padding: 6px 10px;\n"
-        "    caret-color: #E05C36;\n"
-        "    transition: all 0.2s ease;\n"
+        "    background-color: #110F14;\n"
+        "    color: #F7F5F8;\n"
+        "    border: 1px solid rgba(255,255,255,0.08);\n"
+        "    border-radius: 9px;\n"
+        "    padding: 8px 12px;\n"
+        "    caret-color: #F2603C;\n"
+        "    transition: all 220ms ease;\n"
         "}\n"
         "entry:focus {\n"
-        "    border-color: #E05C36;\n"
+        "    border-color: #F2603C;\n"
+        "    box-shadow: 0 0 0 3px rgba(242,96,60,0.18);\n"
+        "    background-color: #141017;\n"
         "}\n"
+        "entry image { color: #7C7888; }\n"
+        /* ---- Buttons (default = ghost) ---- */
         "button {\n"
-        "    background-color: #222222;\n"
-        "    color: #F1F1F0;\n"
-        "    border: 1px solid #2E2E2E;\n"
-        "    border-radius: 6px;\n"
-        "    padding: 5px 10px;\n"
-        "    font-weight: bold;\n"
-        "    transition: all 0.2s ease;\n"
+        "    background: linear-gradient(180deg, #221F27, #19161C);\n"
+        "    color: #F2F1F4;\n"
+        "    border: 1px solid rgba(255,255,255,0.08);\n"
+        "    border-radius: 9px;\n"
+        "    padding: 7px 12px;\n"
+        "    font-weight: 700;\n"
+        "    transition: all 200ms ease;\n"
         "}\n"
         "button:hover {\n"
-        "    background-color: #2E2E2E;\n"
-        "    border-color: #E05C36;\n"
-        "    color: #F1F1F0;\n"
+        "    background: linear-gradient(180deg, #2C2832, #201D25);\n"
+        "    border-color: rgba(242,96,60,0.55);\n"
+        "    color: #FFFFFF;\n"
         "}\n"
-        "button:active {\n"
-        "    background-color: #383834;\n"
+        "button:active { background: #34303C; }\n"
+        "button:disabled {\n"
+        "    color: #56525F;\n"
+        "    border-color: rgba(255,255,255,0.04);\n"
+        "    background: #161319;\n"
         "}\n"
+        /* ---- Primary action (coral -> magenta wing) ---- */
         ".btn-cyan {\n"
-        "    background: #E05C36;\n"
+        "    background: linear-gradient(120deg, #F2603C 0%, #E84B8A 100%);\n"
         "    color: #FFFFFF;\n"
         "    border: none;\n"
-        "    font-weight: 800;\n"
+        "    font-weight: 900;\n"
+        "    letter-spacing: 0.5px;\n"
+        "    box-shadow: 0 4px 16px rgba(232,75,138,0.30);\n"
         "}\n"
         ".btn-cyan:hover {\n"
-        "    background: #E67250;\n"
+        "    background: linear-gradient(120deg, #FF7350 0%, #FB5F9D 100%);\n"
         "    color: #FFFFFF;\n"
+        "    box-shadow: 0 6px 22px rgba(242,96,60,0.45);\n"
         "}\n"
+        ".btn-cyan:active { background: #E84B8A; }\n"
+        /* ---- Destructive action ---- */
         ".btn-red {\n"
-        "    background-color: #222222;\n"
-        "    color: #E53935;\n"
-        "    border: 1px solid #E53935;\n"
+        "    background: rgba(244,63,94,0.08);\n"
+        "    color: #FB7185;\n"
+        "    border: 1px solid rgba(244,63,94,0.55);\n"
         "}\n"
         ".btn-red:hover {\n"
-        "    background-color: #E53935;\n"
+        "    background: linear-gradient(180deg, #F43F5E, #BE123C);\n"
         "    color: #FFFFFF;\n"
+        "    border-color: #F43F5E;\n"
+        "    box-shadow: 0 4px 16px rgba(244,63,94,0.35);\n"
         "}\n"
+        /* ---- Progress ---- */
         "progressbar > trough {\n"
-        "    background-color: #131313;\n"
-        "    border-radius: 4px;\n"
-        "    border: 1px solid #2E2E2E;\n"
+        "    background-color: #0A080C;\n"
+        "    border-radius: 6px;\n"
+        "    border: 1px solid rgba(255,255,255,0.06);\n"
+        "    min-height: 8px;\n"
         "}\n"
-        "progressbar > progress {\n"
-        "    background: #E05C36;\n"
-        "    border-radius: 3px;\n"
+        "progressbar > trough > progress {\n"
+        "    background: linear-gradient(90deg, #F2603C, #E84B8A);\n"
+        "    border-radius: 6px;\n"
+        "    box-shadow: 0 0 12px rgba(232,75,138,0.55);\n"
         "}\n"
+        /* ---- Status console ---- */
         "label.status {\n"
-        "    font-family: 'DejaVu Sans Mono', 'Liberation Mono', monospace;\n"
+        "    font-family: 'JetBrains Mono', 'DejaVu Sans Mono', monospace;\n"
         "    font-size: 11px;\n"
-        "    color: #E05C36;\n"
+        "    color: #F2603C;\n"
         "}\n"
+        "checkbutton { color: #908C99; font-size: 11px; }\n"
+        "checkbutton check {\n"
+        "    background: #110F14;\n"
+        "    border: 1px solid rgba(255,255,255,0.12);\n"
+        "    border-radius: 5px;\n"
+        "}\n"
+        "checkbutton check:checked {\n"
+        "    background: linear-gradient(120deg, #F2603C, #E84B8A);\n"
+        "    border-color: #F2603C;\n"
+        "}\n"
+        "separator { background-color: rgba(255,255,255,0.07); min-height: 1px; min-width: 1px; }\n"
+        /* ---- Splash ---- */
         ".splash-window {\n"
-        "    background-color: #191919;\n"
-        "    border: 2px solid #E05C36;\n"
-        "    border-radius: 12px;\n"
+        "    background: radial-gradient(circle at 50% 30%, #1B1820 0%, #0E0D11 70%);\n"
+        "    border: 1px solid rgba(232,75,138,0.55);\n"
+        "    border-radius: 18px;\n"
+        "    box-shadow: 0 0 40px rgba(242,96,60,0.25);\n"
         "}\n"
         ".splash-loading {\n"
-        "    font-size: 1.2em;\n"
-        "    font-weight: bold;\n"
-        "    color: #E05C36;\n"
+        "    font-size: 1.05em;\n"
+        "    font-weight: 800;\n"
+        "    color: #F2603C;\n"
+        "    letter-spacing: 4px;\n"
         "    font-family: 'Inter', sans-serif;\n"
+        "    text-shadow: 0 0 14px rgba(242,96,60,0.6);\n"
+        "}\n"
+        ".splash-tagline {\n"
+        "    font-size: 9px;\n"
+        "    font-weight: 700;\n"
+        "    color: #7C7888;\n"
+        "    letter-spacing: 3px;\n"
         "}";
 
     gtk_css_provider_load_from_data(css_provider, css_data, -1, NULL);
@@ -812,7 +879,7 @@ static void on_activate(GtkApplication *app, gpointer user_data) {
     /* Main window */
     app_state->window = gtk_application_window_new(app);
     gtk_window_set_title(GTK_WINDOW(app_state->window), APP_TITLE);
-    gtk_window_set_default_size(GTK_WINDOW(app_state->window), 880, 410);
+    gtk_window_set_default_size(GTK_WINDOW(app_state->window), 880, 480);
     
     GdkDisplay *display = gdk_display_get_default();
     if (display) {
@@ -1173,9 +1240,13 @@ static void on_activate(GtkApplication *app, gpointer user_data) {
     }
     gtk_box_pack_start(GTK_BOX(splash_box), splash_img, TRUE, TRUE, 5);
     
-    GtkWidget *loading_label = gtk_label_new("(Loading...)");
+    GtkWidget *loading_label = gtk_label_new("INITIALIZING");
     gtk_style_context_add_class(gtk_widget_get_style_context(loading_label), "splash-loading");
     gtk_box_pack_start(GTK_BOX(splash_box), loading_label, FALSE, FALSE, 5);
+
+    GtkWidget *tagline_label = gtk_label_new("POST-QUANTUM ENCRYPTED STORAGE");
+    gtk_style_context_add_class(gtk_widget_get_style_context(tagline_label), "splash-tagline");
+    gtk_box_pack_start(GTK_BOX(splash_box), tagline_label, FALSE, FALSE, 0);
     
     GtkWidget *splash_progress = gtk_progress_bar_new();
     gtk_widget_set_size_request(splash_progress, 300, 6);
@@ -1593,18 +1664,18 @@ static int __attribute__((unused)) check_license_verification(void) {
 
     GtkCssProvider *cp = gtk_css_provider_new();
     gtk_css_provider_load_from_data(cp,
-        "dialog { background-color: #191919; color: #F1F1F0; font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif; }\n"
-        "box { background-color: #191919; }\n"
-        ".dialog-card { background-color: #222222; border: 1px solid #2E2E2E; border-radius: 8px; padding: 18px; }\n"
-        ".dialog-title { font-size: 18px; font-weight: bold; color: #F1F1F0; }\n"
-        ".dialog-warning { font-size: 14px; font-weight: bold; color: #34C759; }\n"
-        ".dialog-expired { font-size: 14px; font-weight: bold; color: #E53935; }\n"
-        ".action-btn { background: #E05C36; color: #FFFFFF; font-weight: bold; border: none; border-radius: 6px; padding: 8px 16px; }\n"
-        ".action-btn:hover { background: #E67250; }\n"
-        ".trial-btn { background-color: #222222; color: #F1F1F0; border: 1px solid #2E2E2E; border-radius: 6px; padding: 8px 16px; font-weight: bold; }\n"
-        ".trial-btn:hover { background-color: #2E2E2E; border-color: #E05C36; color: #F1F1F0; }\n"
-        ".exit-btn { background: #E53935; color: #FFFFFF; font-weight: bold; border: none; border-radius: 6px; padding: 8px 16px; }\n"
-        ".exit-btn:hover { background: #C62828; }",
+        "dialog { background-color: #0E0D11; color: #F2F1F4; font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif; }\n"
+        "box { background-color: #0E0D11; }\n"
+        ".dialog-card { background: linear-gradient(160deg, #1E1B22, #161319); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 18px; box-shadow: 0 6px 18px rgba(0,0,0,0.45); }\n"
+        ".dialog-title { font-size: 18px; font-weight: 800; color: #F7F5F8; letter-spacing: 1px; }\n"
+        ".dialog-warning { font-size: 14px; font-weight: bold; color: #34D399; }\n"
+        ".dialog-expired { font-size: 14px; font-weight: bold; color: #FB7185; }\n"
+        ".action-btn { background: linear-gradient(120deg, #F2603C, #E84B8A); color: #FFFFFF; font-weight: 900; border: none; border-radius: 9px; padding: 8px 16px; box-shadow: 0 4px 16px rgba(232,75,138,0.30); }\n"
+        ".action-btn:hover { background: linear-gradient(120deg, #FF7350, #FB5F9D); }\n"
+        ".trial-btn { background: linear-gradient(180deg, #221F27, #19161C); color: #F2F1F4; border: 1px solid rgba(255,255,255,0.08); border-radius: 9px; padding: 8px 16px; font-weight: 700; }\n"
+        ".trial-btn:hover { background: #2C2832; border-color: rgba(242,96,60,0.55); color: #FFFFFF; }\n"
+        ".exit-btn { background: rgba(244,63,94,0.10); color: #FB7185; font-weight: bold; border: 1px solid rgba(244,63,94,0.55); border-radius: 9px; padding: 8px 16px; }\n"
+        ".exit-btn:hover { background: linear-gradient(180deg, #F43F5E, #BE123C); color: #FFFFFF; border-color: #F43F5E; }",
         -1, NULL);
 
     GtkStyleContext *dialog_context = gtk_widget_get_style_context(dialog);
