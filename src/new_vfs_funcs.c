@@ -179,15 +179,43 @@ int vfs_resize_file(vfs_context_t *ctx, const char *filename, size_t new_size) {
         }
     }
     
-    /* Securely wipe old sectors */
+    /* Securely wipe old sectors.
+     *
+     * The gap search treats the file's own old allocation as free space, so the
+     * chosen destination gap can overlap the old extent. The relocated copy now
+     * lives in [new_offset, new_offset + old_size); zeroing that range would
+     * destroy the data we just moved. Wipe only the parts of the old extent
+     * that do NOT overlap the relocated copy. */
     if (old_size > 0) {
+        const uint64_t old_start = ctx->files[idx].offset;
+        const uint64_t old_end   = old_start + old_size;
+        const uint64_t prot_start = new_offset;          /* relocated copy */
+        const uint64_t prot_end   = new_offset + old_size;
+
         memset(copy_buf, 0, old_size);
-        vfs_write_data(ctx, ctx->files[idx].offset, copy_buf, old_size);
-        /* Force flush of wiped sectors */
+
+        uint64_t pos = old_start;
+        while (pos < old_end) {
+            if (pos >= prot_start && pos < prot_end) {
+                pos = prot_end;                          /* skip relocated data */
+                continue;
+            }
+            uint64_t seg_end = old_end;
+            if (prot_start > pos && prot_start < seg_end)
+                seg_end = prot_start;                    /* stop before protected */
+            size_t seg = (size_t)(seg_end - pos);
+            vfs_write_data(ctx, pos, copy_buf, seg);
+            pos = seg_end;
+        }
+
+        /* Force flush of wiped sectors, skipping any that hold relocated data. */
         if (ctx->cache) {
-            uint64_t start_sector = ctx->files[idx].offset / VFS_SECTOR_SIZE;
-            uint64_t end_sector = start_sector + old_sectors;
+            uint64_t start_sector = old_start / VFS_SECTOR_SIZE;
+            uint64_t end_sector   = start_sector + old_sectors;
+            uint64_t prot_s0 = prot_start / VFS_SECTOR_SIZE;
+            uint64_t prot_s1 = (prot_end + VFS_SECTOR_SIZE - 1) / VFS_SECTOR_SIZE;
             for (uint64_t s = start_sector; s < end_sector; s++) {
+                if (s >= prot_s0 && s < prot_s1) continue;
                 cache_flush_sector(ctx->cache, s);
             }
         }
