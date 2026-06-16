@@ -4,7 +4,7 @@
 <br><br>
 <div align="center">
 
-<a href="https://github.com/effjy/REPO/"><img src="titles/krakken-disk-v500-butterfly-edition-title.svg" height="44" alt="Krakken-Disk v5.0.0 (Butterfly Edition)"></a>
+<a href="https://github.com/effjy/REPO/"><img src="titles/krakken-disk-v500-butterfly-edition-title.svg" height="52" alt="Krakken-Disk v5.0.0 (Butterfly Edition)"></a>
 <br><br>
 [![License: MIT](https://img.shields.io/badge/License-MIT-teal?style=flat-square&labelColor=1a1a1a)](LICENSE)
 [![C Standard: C11](https://img.shields.io/badge/C_Standard-C11-teal?style=flat-square&labelColor=1a1a1a)](#)
