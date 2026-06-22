@@ -25,7 +25,7 @@
 ## 📸 Screenshot
 
 <div align="center">
-  <img src="screenshot_krakken.png" alt="Krakken-Disk Graphical User Interface Screenshot" width="800" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);"/>
+  <img src="screenshot.png" alt="Krakken-Disk Graphical User Interface Screenshot" width="800" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);"/>
   <br/><br/>
   <em>The Krakken-Disk main dashboard — dark-themed GTK interface for volume management</em>
 </div>
